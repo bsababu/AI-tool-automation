@@ -6,19 +6,19 @@ from pathlib import Path
 import random
 
 
-dotenv_path = Path('./.env')
-load_dotenv(dotenv_path=dotenv_path)
-
+load_dotenv()
 def analyze_with_claude(code):
   client = anthropic.Anthropic(
-    # defaults to 
-    api_key=os.environ.get("api_key")
+    api_key=os.getenv("api_keys")
   )
   response = client.messages.create(
         model="claude-3-7-sonnet-20250219",
         max_tokens=1024,
         messages=[
-            {"role": "user", "content": f"Analyze these Python code and detect the complexity and the algorithm used and then estimate the memory usage:\n{code}"}]
+            {
+              "role": "user", 
+              "content": f"Analyse and Estimate the dynamic memory usage of this code,\
+                detect the complexity and Focus on algorithm/data structures and complexity:\n{code}"}]
     )
   return response.content
 

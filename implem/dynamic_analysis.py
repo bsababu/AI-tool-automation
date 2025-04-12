@@ -1,4 +1,6 @@
+from memory_profiler import memory_usage, profile
 import random
+
 
 def merge_sort(arr):
     if len(arr) > 1:
@@ -26,4 +28,8 @@ def merge_sort(arr):
             k += 1
     return arr
 
-# merge_sort([random.randint(1, 100) for _ in range(10)])
+
+if __name__ == "__main__":
+    arr = [random.randint(1, 100) for _ in range(10)]
+    mem_usage = memory_usage((merge_sort, (arr,)), max_usage= True)
+    print(f"memory usage w/ memory_usage-\n: {mem_usage} MB")
