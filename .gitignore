@@ -2,3 +2,9 @@ implem/.env
 implem/mprofile_*
 .DS_Store
 implem/clone_git.py
+implem/dynamic_analysis.py
+implem/llvm_analysis.py
+tests/__pycache__
+implem/__pycache__/
+__pycache__/
+.pytest_cache/
