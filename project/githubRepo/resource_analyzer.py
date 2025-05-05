@@ -1,15 +1,13 @@
 import ast
-import os
+import json
 import re
-import importlib
-import numpy as np
 from openai import OpenAI
 
 class ResourceAnalyzer:
     def __init__(self, llm_api_key=None):
-        self.llm_client = OpenAI(api_key=llm_api_key) if llm_api_key else None
+        self.llm_client = OpenAI(api_key=llm_api_key)
         self.memory_intensive_libs = ["pandas", "numpy", "tensorflow", "torch", "sklearn"]
-        self.network_libs = ["requests", "urllib", "aiohttp", "httpx", "websockets"]
+        self.network_libs = ["requests", "urllib", "aiohttp", "httpx", "websockets","socket"]
     
     def analyze_file(self, file_path):
         """Analyze a single Python file for resource usage"""
@@ -18,7 +16,7 @@ class ResourceAnalyzer:
                 code = f.read()
                 return self._analyze_code(code, file_path)
             except Exception as e:
-                return {"error": str(e)}
+                return {"error": e}
     
     def _analyze_code(self, code, file_path):
         """Use combination of AST parsing and LLM analysis for code"""
@@ -27,13 +25,6 @@ class ResourceAnalyzer:
             "cpu": self._estimate_cpu_usage(code),
             "bandwidth": self._estimate_bandwidth_usage(code),
         }
-        
-        # Enhance with LLM analysis if available
-        if self.llm_client:
-            llm_insights = self._get_llm_insights(code)
-            for key in resource_profile:
-                if key in llm_insights:
-                    resource_profile[key].update(llm_insights[key])
         
         return resource_profile
     
@@ -53,12 +44,12 @@ class ResourceAnalyzer:
                 if lib in self.memory_intensive_libs:
                     memory_profile["memory_intensive_libs"].append(lib)
         
-        # Look for large data structures
+        
         large_data_patterns = [
             r"= \[\s*for .+ in .+\]",  # List comprehensions
             r"= \{\s*for .+ in .+\}",  # Dict/set comprehensions
-            r"\.read\(\)",             # Reading files into memory
-            r"pd\.read_csv|pd\.read_excel|pd\.read_json", # Pandas data loading
+            r"\.read\(\)",
+            r"pd\.read_csv|pd\.read_excel|pd\.read_json",
         ]
         
         for pattern in large_data_patterns:
@@ -80,7 +71,6 @@ class ResourceAnalyzer:
         for pattern in loop_patterns:
             loop_lines.extend([(m.start(), m.group()) for m in re.finditer(pattern, code)])
         
-        # Simple heuristic to detect nested loops
         loop_lines.sort()
         loop_depths = {}
         max_depth = 0
@@ -113,7 +103,7 @@ class ResourceAnalyzer:
             "network_libraries": [],
         }
         
-        # Check for network libraries
+        # network libs
         import_pattern = r"import\s+([a-zA-Z0-9_]+)|from\s+([a-zA-Z0-9_]+)\s+import"
         imports = re.findall(import_pattern, code)
         for imp in imports:
@@ -121,7 +111,7 @@ class ResourceAnalyzer:
                 if lib in self.network_libs:
                     bandwidth_profile["network_libraries"].append(lib)
         
-        # Check for API calls and data transfers
+        # Check for API calls
         network_patterns = [
             r"\.get\(\s*['\"]https?://",
             r"\.post\(\s*['\"]https?://",
@@ -162,17 +152,22 @@ class ResourceAnalyzer:
            - Data transfer volumes
            - Streaming vs. bulk transfer patterns
         
-        Format your response as JSON with these three categories.
+        Format your response as JSON with these three categories and Do not include any text outside the JSON.
         """
         
         try:
             response = self.llm_client.chat.completions.create(
-                model="gpt-4-turbo", 
+                model="gpt-4-turbo", #gpt-4-turbo | gpt-4o
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
             )
-            print(f"here is llm res -< {response.choices[0].message.content}")
-            return response.choices[0].message.content
+            res = response.choices[0].message.content
+            try:
+                #print(f"LLM response: {json.loads(res)}")
+                return json.loads(res)
+            except json.JSONDecodeError:
+                print("LLM returned non-JSON; skipping LLM augmentation")
+                return {} 
         except Exception as e:
             print(f"LLM analysis failed: {e}")
             return {}

@@ -11,7 +11,7 @@ class RepoFetcher:
         """Fetch a GitHub repository to analyze"""
         if not local_path:
             repo_name = repo_url.split('/')[-1]
-            local_path = f"./repos/{repo_name}"
+            local_path = f"./AnalyzedRepos/{repo_name}"
         
         print(f"Cloning {repo_url} to {local_path}")
         git.Repo.clone_from(repo_url, local_path)

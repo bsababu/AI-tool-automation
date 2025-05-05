@@ -2,62 +2,56 @@
 
 ## Overview
 
-Accessing computational infrastructures is becoming increasingly complex, requiring significant manual effort to configure platforms efficiently. This project introduces an AI-powered tool that automates the configuration of computing platforms, optimizing resource allocation and reducing setup time for research projects.
+Accessing computational infrastructures is becoming increasingly complex, requiring manual effort to configure and deploy platforms efficiently. This project introduces an AI-powered tool that automates the configuration of computing platforms, by analyzing the codes and predicting the required resource requirements with the LLM (gpt-4) by passing the source of the project (github repository link).
 
 ### Key Features
 
-- Automated Configuration: Leverages AI to automate the setup of computing environments, reducing manual intervention.
+- Predict the estimated memory, CPU and network bandwidth.
 
-- Resource Optimization: Aligns computational, networking, and storage resources with specific project needs.
+- loop feedback loop to adjust the configurated resources.
 
-- Research Paper Analysis: Analyzes research papers to determine optimal configurations.
+- Source Code Integration extracting: prompting the user to provide the source code of the project (github repository link) and extracting the required resources.
 
-- Source Code Integration: Extracts relevant configurations from repositories like GitHub to streamline deployments.
-
-- API & Script Integration: Provides API access or auto-generated scripts for easy integration and deployment.
-
-- Scalability & Efficiency: Enhances scalability, allowing researchers to focus on their work rather than infrastructure management.
+- still in progress .....
 
 ### Technical Requirements
 
 To build and deploy this tool, the following technologies are required:
 
-- Conversational AI: Enables intelligent interaction and decision-making for resource allocation.
+- Python verion above 3.9.
 
-- Databases: Stores configuration details, user preferences, and research data for adaptive learning.
-
-- Python: Core programming language for developing AI models, APIs, and automation scripts.
 
 ### Getting Started
 
 #### Prerequisites:
 
-- Install Python (>=3.8)
-
-- Set up a database (PostgreSQL, MySQL, or MongoDB)
-
-- Install required dependencies:
-    ``` 
-    pip install -r requirements.txt
-    ```
+- Install Python (>=3.9)
 
 #### Usage
 
-1. Clone the repository:
+- create a virtual environment (optional but recommended) to avoid dependency conflicts:
+
+    ``` python -m venv envpyAi ```
+
+- Clone the repository:
 
     ``` git clone https://github.com/your-repo/ai-computing-tool.git ```
 
-2. Navigate to the project directory:
+- Navigate to the project directory:
 
     ``` cd ai-computing-tool ```
 
-3. Run the setup script:
+- Install the dependecies from the requirements file:
 
-    ``` python setup.py ```
+    ``` pip install -r requirements.txt ```
 
-4. Start the AI-powered configuration tool:
+- Set up your OpenAI API key in .env file (create it if it doesn't exist):
 
-    ``` python main.py ```
+    - assign the keys variable OPEN_api_KEYS
+
+- Start the AI-powered configuration tool:
+
+    ``` python -m main ```
 
 #### Contributing
 

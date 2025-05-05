@@ -4,9 +4,11 @@ implem/mprofile_*
 envThesis/
 project/config.json
 implem/*
-project/__*
+project/__py*
 project/repos/
 tests/__py*
 .env
 .pytest_cache/
 __pycache__/
+AnalyzedRepos/
+Results/

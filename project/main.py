@@ -1,10 +1,11 @@
+import json
 import os
 from dotenv import load_dotenv
+import times
 
-from githubRepo.fetch_repo import RepoFetcher
-from githubRepo.resource_analyzer import ResourceAnalyzer
-from githubRepo.resource_profiler import ResourceProfiler
-from pprint import pprint
+from project.githubRepo.fetch_repo import RepoFetcher
+from project.githubRepo.resource_analyzer import ResourceAnalyzer
+from project.githubRepo.resource_profiler import ResourceProfiler
 
 
 class GithubResourceAnalyzer:
@@ -24,8 +25,9 @@ class GithubResourceAnalyzer:
             "profile": resource_profile,
         }
 
-def main():
+def analyzer_main():
     load_dotenv(".env")
+    
     repo_url = input("Enter the GitHub repository .git URL: ").strip()
 
     if not repo_url.endswith(".git"):
@@ -38,13 +40,20 @@ def main():
     analyzer = GithubResourceAnalyzer(github_token=github_token, llm_api_key=llm_api_key)
     results = analyzer.analyze_repository(repo_url)
 
-    print("Repository structure analysis")
-    for folder, files in results["structure"].items():
-        print(f"{folder}: {files}")
+    results_dir = f"./Results/"
+    os.makedirs(results_dir, exist_ok=True)
+    out_path = os.path.join(results_dir, f"analyzed{times.now()}.json")
 
-    print("\nResource Profile Summary:")
-    pprint(results["profile"])
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2)
+    print(f"Full JSON written to {out_path}")
 
-
-if __name__ == "__main__":
-    main()
+    try:
+        estimated = {
+        "estimated_Memory": results["profile"]["recommendations"]["memory"]["recommended_allocation"],
+        "estimated_CPU_cores":   results["profile"]["recommendations"]["cpu"]["recommended_cores"],
+        "estimated_network_bandwidth_kbps": results["profile"]["recommendations"]["bandwidth"]["peak_requirement"],
+        }
+        print("\nestimated:", json.dumps(estimated, indent=2))
+    except KeyError as e:
+        print(f"KeyError: {e}. keys were not found ")

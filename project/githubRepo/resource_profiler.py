@@ -40,11 +40,26 @@ class ResourceProfiler:
                         continue
                         
                     file_profile = self.analyzer.analyze_file(file_path)
+                    if isinstance(file_profile, str):
+                        import json
+                        try:
+                            file_profile = json.loads(file_profile)
+                        except Exception as e:
+                            print(f"Skipping {file} due to JSON parsing error: {e}")
+                            continue
+
+                    if not isinstance(file_profile, dict) or "error" in file_profile:
+                        print(f"Skipping {file} due to analysis error: {file_profile.get('error', 'Unknown error')}")
+                        continue
+                    
                     total_profile["files_analyzed"] += 1
                     total_profile["component_profiles"][relative_path] = file_profile
                     
-                    # Update aggregate metrics
-                    self._update_aggregate_profile(total_profile, file_profile)
+                    try:
+                        self._update_aggregate_profile(total_profile, file_profile)
+                    except Exception as e:
+                        print(f"Failed to update aggregate profile for {relative_path}: {e}")
+
         
         # Generate recommendations
         total_profile["recommendations"] = self._generate_recommendations(total_profile)
@@ -53,15 +68,19 @@ class ResourceProfiler:
     
     def _update_aggregate_profile(self, total_profile, file_profile):
         """Update the aggregate profile with file-specific metrics"""
-        # Memory estimates
-        mem_intensive_libs = file_profile["memory"]["memory_intensive_libs"]
-        large_structs = file_profile["memory"]["large_data_structures"]
+        
+        if "memory" in file_profile:
+            mem_intensive_libs = file_profile["memory"].get("memory_intensive_libs", [])
+            large_structs = file_profile["memory"].get("large_data_structures", 0)
+        else:
+            print(f"File profile missing memo data for {file_profile}")
+            mem_intensive_libs = []
+            large_structs = 0
+
         
         if "pandas" in mem_intensive_libs or "numpy" in mem_intensive_libs:
             total_profile["memory"]["estimated_base_mb"] += 100
-            total_profile["memory"]["scalability_factor"] = max(
-                total_profile["memory"]["scalability_factor"], 1.5
-            )
+            total_profile["memory"]["scalability_factor"] = max(total_profile["memory"]["scalability_factor"], 1.5)
         
         if "tensorflow" in mem_intensive_libs or "torch" in mem_intensive_libs:
             total_profile["memory"]["estimated_base_mb"] += 500
@@ -69,15 +88,19 @@ class ResourceProfiler:
                 total_profile["memory"]["scalability_factor"], 2.0
             )
         
-        # Add for large data structures
+        
         total_profile["memory"]["estimated_peak_mb"] += large_structs * 50
         
-        # CPU estimates
-        if file_profile["cpu"]["nested_loops"] > 1:
-            total_profile["cpu"]["cpu_bound_score"] += file_profile["cpu"]["nested_loops"]
-        
-        if file_profile["cpu"]["recursive_calls"] > 0:
-            total_profile["cpu"]["cpu_bound_score"] += file_profile["cpu"]["recursive_calls"] * 2
+        # CPU
+        if "cpu" in file_profile:
+            if file_profile["cpu"].get("nested_loops", 0) > 1:
+                total_profile["cpu"]["cpu_bound_score"] += file_profile["cpu"]["nested_loops"]
+
+            if file_profile["cpu"].get("recursive_calls", 0) > 0:
+                total_profile["cpu"]["cpu_bound_score"] += file_profile["cpu"]["recursive_calls"] * 2
+        else:
+            print(f"File profile missing CPU data for {file_profile}")
+
         
         # Adjust CPU requirements
         if total_profile["cpu"]["cpu_bound_score"] > 5:
