@@ -1,3 +1,4 @@
+import datetime
 import os
 import git
 from github import Github
@@ -6,17 +7,17 @@ class RepoFetcher:
     def __init__(self, github_token=None):
         self.token = github_token
         self.github_client = Github(github_token) if github_token else None
-    
+
     def fetch_repo(self, repo_url, local_path=None):
         """Fetch a GitHub repository to analyze"""
         if not local_path:
-            repo_name = repo_url.split('/')[-1]
-            local_path = f"./AnalyzedRepos/{repo_name}"
+            repo_name = repo_url.split('/')[-1].replace('.git', '')
+            local_path = f"./AnalyzedRepos/{repo_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         print(f"Cloning {repo_url} to {local_path}")
         git.Repo.clone_from(repo_url, local_path)
         return local_path
-    
+
     def get_repo_structure(self, local_path):
         """Get repository file structure"""
         structure = {}

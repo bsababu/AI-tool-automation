@@ -1,173 +1,197 @@
 import ast
 import json
 import re
+import hashlib
 from openai import OpenAI
 
 class ResourceAnalyzer:
-    def __init__(self, llm_api_key=None):
+    def __init__(self, llm_api_key):
         self.llm_client = OpenAI(api_key=llm_api_key)
         self.memory_intensive_libs = ["pandas", "numpy", "tensorflow", "torch", "sklearn"]
-        self.network_libs = ["requests", "urllib", "aiohttp", "httpx", "websockets","socket"]
-    
-    def analyze_file(self, file_path):
-        """Analyze a single Python file for resource usage"""
+        self.network_libs = ["requests", "urllib", "aiohttp", "httpx", "websockets", "socket", "BeautifulSoup"]
+        self.response_cache = {}
+
+    def analyze_file(self, file_path, repo_structure):
+        """Analyze a single Python file using LLM, with static fallback"""
         with open(file_path, 'r', encoding='utf-8') as f:
             try:
                 code = f.read()
-                return self._analyze_code(code, file_path)
+                return self._analyze_code(code, file_path, repo_structure)
             except Exception as e:
-                return {"error": e}
-    
-    def _analyze_code(self, code, file_path):
-        """Use combination of AST parsing and LLM analysis for code"""
-        resource_profile = {
-            "memory": self._estimate_memory_usage(code),
-            "cpu": self._estimate_cpu_usage(code),
-            "bandwidth": self._estimate_bandwidth_usage(code),
-        }
-        
+                return {"error": str(e)}
+
+    def _analyze_code(self, code, file_path, repo_structure):
+        """Use LLM for primary analysis, fallback to static if needed"""
+        code_hash = hashlib.sha256(code.encode('utf-8')).hexdigest()
+        if code_hash in self.response_cache:
+            return self.response_cache[code_hash]
+
+        llm_profile = self._get_llm_insights(code, file_path, repo_structure)
+        if llm_profile and "error" not in llm_profile:
+            resource_profile = llm_profile
+        else:
+            print(f"LLM failed for {file_path}, using static analysis")
+            resource_profile = {
+                "memory": self._estimate_memory_usage(code),
+                "cpu": self._estimate_cpu_usage(code),
+                "bandwidth": self._estimate_bandwidth_usage(code),
+                "static_fallback": True,
+            }
+
+        self.response_cache[code_hash] = resource_profile
         return resource_profile
-    
+
+    def _get_llm_insights(self, code, file_path, repo_structure):
+        """Get resource usage insights from LLM"""
+        try:
+            repo_context = json.dumps(repo_structure, indent=2)
+            prompt = f"""
+            You are an expert code analyzer. Analyze the following Python code from file '{file_path}' in a repository with the structure:
+            ```json
+            {repo_context}
+            ```
+
+            Code:
+            ```python
+            {code}
+            ```
+
+            Provide a detailed JSON response with quantitative estimates for resource usage:
+            ```json
+            {{
+                "memory": {{
+                    "base_mb": float,  // Base memory requirement in MB
+                    "peak_mb": float,  // Peak memory requirement in MB
+                    "scaling_factor": float,  // Scaling factor (1.0 = constant, >1.0 = grows with input)
+                    "notes": string  // Observations (e.g., large data structures, leaks)
+                }},
+                "cpu": {{
+                    "complexity": string,  // Big-O notation (e.g., "O(n)", "O(n^2)")
+                    "estimated_cores": float,  // Number of CPU cores needed (e.g., 1.0, 2.5)
+                    "parallelization_potential": string,  // "low", "medium", "high"
+                    "notes": string  // Observations (e.g., nested loops, recursion)
+                }},
+                "bandwidth": {{
+                    "network_calls_per_execution": int,  // Estimated network calls
+                    "data_transfer_mb": float,  // Estimated data transfer per execution
+                    "bandwidth_mbps": float,  // Estimated bandwidth in Mbps
+                    "transfer_type": string,  // "streaming" or "bulk"
+                    "notes": string  // Observations (e.g., libraries used)
+                }}
+            }}
+            ```
+            Ensure all fields are populated with reasonable estimates. For CPU, estimate the number of cores based on computational intensity, parallelization potential, and code patterns (e.g., loops, recursion, multiprocessing usage).
+            """
+            response = self.llm_client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                response_format={"type": "json_object"},
+            )
+            res = response.choices[0].message.content
+            return json.loads(res)
+        except Exception as e:
+            print(f"LLM analysis failed for {file_path}: {str(e)}")
+            return {"error": str(e)}
+
     def _estimate_memory_usage(self, code):
-        """Estimate memory usage patterns"""
+        """Static fallback for memory usage estimation"""
         memory_profile = {
-            "large_data_structures": 0,
-            "memory_intensive_libs": [],
-            "potential_memory_leaks": 0,
+            "base_mb": 10.0,
+            "peak_mb": 20.0,
+            "scaling_factor": 1.0,
+            "notes": "Static fallback: basic Python runtime",
         }
         
-        # Parse imports to find memory-intensive libraries
         import_pattern = r"import\s+([a-zA-Z0-9_]+)|from\s+([a-zA-Z0-9_]+)\s+import"
         imports = re.findall(import_pattern, code)
         for imp in imports:
             for lib in [x for x in imp if x]:
                 if lib in self.memory_intensive_libs:
-                    memory_profile["memory_intensive_libs"].append(lib)
-        
+                    memory_profile["base_mb"] += 50.0
+                    memory_profile["scaling_factor"] = max(memory_profile["scaling_factor"], 1.5)
+                    memory_profile["notes"] += f"; Found {lib}"
         
         large_data_patterns = [
-            r"= \[\s*for .+ in .+\]",  # List comprehensions
-            r"= \{\s*for .+ in .+\}",  # Dict/set comprehensions
+            r"= \[\s*for .+ in .+\]",
+            r"= \{\s*for .+ in .+\}",
             r"\.read\(\)",
-            r"pd\.read_csv|pd\.read_excel|pd\.read_json",
+            r"pd\.readGRAVITY_csv|pd\.read_excel|pd\.read_json",
+            r"class\s+[A-Za-z0-9_]+\s*:",
         ]
+        large_structs = sum(len(re.findall(pattern, code)) for pattern in large_data_patterns)
+        memory_profile["peak_mb"] += large_structs * 10.0
         
-        for pattern in large_data_patterns:
-            memory_profile["large_data_structures"] += len(re.findall(pattern, code))
-            
         return memory_profile
-    
+
     def _estimate_cpu_usage(self, code):
-        """Estimate CPU usage patterns"""
+        """Static fallback for CPU usage estimation"""
         cpu_profile = {
-            "nested_loops": 0,
-            "recursive_calls": 0,
-            "cpu_intensive_operations": 0,
+            "complexity": "O(n)",
+            "estimated_cores": 1.0,
+            "parallelization_potential": "low",
+            "notes": "Static fallback: basic processing",
         }
-        
-        # Check for nested loops
-        loop_patterns = [r"for .+ in .+:", r"while .+:"]
-        loop_lines = []
-        for pattern in loop_patterns:
-            loop_lines.extend([(m.start(), m.group()) for m in re.finditer(pattern, code)])
-        
-        loop_lines.sort()
-        loop_depths = {}
-        max_depth = 0
-        for i, (pos, loop) in enumerate(loop_lines):
-            depth = 0
-            for prev_pos, _ in loop_lines[:i]:
-                if code[prev_pos:pos].count("    ") > depth:
-                    depth += 1
-            loop_depths[pos] = depth
-            max_depth = max(max_depth, depth)
-        
-        cpu_profile["nested_loops"] = max_depth
         
         try:
             tree = ast.parse(code)
-            function_names = [node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)]
-            for func in function_names:
-                if func in code and re.search(rf"{func}\s*\(", code):
-                    cpu_profile["recursive_calls"] += 1
+            class LoopVisitor(ast.NodeVisitor):
+                def __init__(self):
+                    self.max_depth = 0
+                    self.current_depth = 0
+                def visit_For(self, node):
+                    self.current_depth += 1
+                    self.max_depth = max(self.max_depth, self.current_depth)
+                    self.generic_visit(node)
+                    self.current_depth -= 1
+                def visit_While(self, node):
+                    self.current_depth += 1
+                    self.max_depth = max(self.max_depth, self.current_depth)
+                    self.generic_visit(node)
+                    self.current_depth -= 1
+            visitor = LoopVisitor()
+            visitor.visit(tree)
+            cpu_profile["estimated_cores"] += visitor.max_depth * 0.5  # 0.5 cores per loop depth
+            cpu_profile["complexity"] = f"O(n^{visitor.max_depth})" if visitor.max_depth > 1 else "O(n)"
+            cpu_profile["notes"] += f"; Nested loops depth: {visitor.max_depth}"
+            
+            # Check for parallelization
+            if re.search(r"multiprocessing|threading", code):
+                cpu_profile["parallelization_potential"] = "high"
+                cpu_profile["estimated_cores"] += 1.0
         except SyntaxError:
             pass
         
         return cpu_profile
-    
+
     def _estimate_bandwidth_usage(self, code):
-        """Estimate bandwidth usage patterns"""
+        """Static fallback for bandwidth usage estimation"""
         bandwidth_profile = {
-            "network_calls": 0,
-            "data_transfers": 0,
-            "network_libraries": [],
+            "network_calls_per_execution": 0,
+            "data_transfer_mb": 0.0,
+            "bandwidth_mbps": 0.0,
+            "transfer_type": "bulk",
+            "notes": "Static fallback: no network activity",
         }
         
-        # network libs
         import_pattern = r"import\s+([a-zA-Z0-9_]+)|from\s+([a-zA-Z0-9_]+)\s+import"
         imports = re.findall(import_pattern, code)
         for imp in imports:
             for lib in [x for x in imp if x]:
                 if lib in self.network_libs:
-                    bandwidth_profile["network_libraries"].append(lib)
+                    bandwidth_profile["notes"] += f"; Found {lib}"
         
-        # Check for API calls
         network_patterns = [
-            r"\.get\(\s*['\"]https?://",
-            r"\.post\(\s*['\"]https?://",
-            r"\.request\(\s*['\"]https?://",
-            r"urllib\.request\.urlopen",
-            r"\.download\(",
+            (r"\.get\(\s*['\"]https?://", 0.1),
+            (r"\.post\(\s*['\"]https?://", 0.5),
+            (r"\.request\(\s*['\"]https?://", 0.3),
+            (r"urllib\.request\.urlopen", 0.2),
+            (r"\.download\(", 10.0),
+            (r"websockets\.connect", 1.0),
         ]
+        for pattern, size_mb in network_patterns:
+            matches = re.findall(pattern, code)
+            bandwidth_profile["network_calls_per_execution"] += len(matches)
+            bandwidth_profile["data_transfer_mb"] += len(matches) * size_mb
+        bandwidth_profile["bandwidth_mbps"] = bandwidth_profile["data_transfer_mb"] / 10
         
-        for pattern in network_patterns:
-            bandwidth_profile["network_calls"] += len(re.findall(pattern, code))
-            
         return bandwidth_profile
-    
-    def _get_llm_insights(self, code):
-        """Get insights from LLM for more nuanced analysis"""
-        # This would call the LLM API to analyze the code
-        prompt = f"""
-        Analyze the following Python code for resource usage patterns:
-        
-        ```python
-        {code}
-        ```
-        
-        Provide a detailed analysis with quantitative estimates where possible:
-        
-        1. Memory Usage:
-           - Estimate base memory requirements
-           - Identify potential memory leaks or inefficient patterns
-           - How memory usage scales with input size
-        
-        2. CPU Usage:
-           - Algorithmic complexity of key functions
-           - CPU-intensive operations
-           - Parallelization opportunities
-        
-        3. Bandwidth Usage:
-           - Network call patterns and frequency
-           - Data transfer volumes
-           - Streaming vs. bulk transfer patterns
-        
-        Format your response as JSON with these three categories and Do not include any text outside the JSON.
-        """
-        
-        try:
-            response = self.llm_client.chat.completions.create(
-                model="gpt-4-turbo", #gpt-4-turbo | gpt-4o
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-            )
-            res = response.choices[0].message.content
-            try:
-                #print(f"LLM response: {json.loads(res)}")
-                return json.loads(res)
-            except json.JSONDecodeError:
-                print("LLM returned non-JSON; skipping LLM augmentation")
-                return {} 
-        except Exception as e:
-            print(f"LLM analysis failed: {e}")
-            return {}

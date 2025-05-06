@@ -4,15 +4,17 @@
 
 Accessing computational infrastructures is becoming increasingly complex, requiring manual effort to configure and deploy platforms efficiently. This project introduces an AI-powered tool that automates the configuration of computing platforms, by analyzing the codes and predicting the required resource requirements with the LLM (gpt-4) by passing the source of the project (github repository link).
 
+!["The architecture of the project"](/project/llm-analyzer_arch.png)
+
 ### Key Features
 
 - Predict the estimated memory, CPU and network bandwidth.
 
-- loop feedback loop to adjust the configurated resources.
+- loop feedback loop to adjust the configurated resources if there is a change in the source code.
 
 - Source Code Integration extracting: prompting the user to provide the source code of the project (github repository link) and extracting the required resources.
 
-- still in progress .....
+- generate a configuration file: generating a configuration file based on the extracted information.
 
 ### Technical Requirements
 

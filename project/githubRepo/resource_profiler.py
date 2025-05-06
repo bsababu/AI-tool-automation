@@ -1,131 +1,113 @@
 import os
-
+from multiprocessing.dummy import Pool
 
 class ResourceProfiler:
     def __init__(self, analyzer):
         self.analyzer = analyzer
         self.profiles = {}
-    
-    def profile_repository(self, repo_path):
-        """Create a complete resource profile for a repository"""
+
+    def profile_repository(self, repo_path, repo_structure):
         total_profile = {
             "memory": {
-                "estimated_base_mb": 50,
-                "estimated_peak_mb": 50,
-                "scalability_factor": 1.0,
+                "estimated_base_mb": 0.0,
+                "estimated_peak_mb": 0.0,
+                "scaling_factor": 1.0,
             },
             "cpu": {
-                "estimated_cores": 1,
+                "estimated_cores": 0.0,
                 "parallelization_potential": "low",
-                "cpu_bound_score": 0,
             },
             "bandwidth": {
-                "estimated_baseline_kbps": 0,
-                "estimated_peak_mbps": 0,
-                "data_transfer_frequency": "low",
+                "network_calls_per_execution": 0,
+                "data_transfer_mb": 0.0,
+                "bandwidth_mbps": 0.0,
+                "transfer_type": "bulk",
             },
             "files_analyzed": 0,
             "component_profiles": {},
+            "sources_used": {"llm": 0, "static": 0},
         }
         
-        # Analyze Python files
+        python_files = []
         for root, _, files in os.walk(repo_path):
             for file in files:
-                if file.endswith('.py'):
-                    file_path = os.path.join(root, file)
-                    relative_path = os.path.relpath(file_path, repo_path)
-                    
-                    # Skip test files and setup files
-                    if 'test' in file or file == 'setup.py':
-                        continue
-                        
-                    file_profile = self.analyzer.analyze_file(file_path)
-                    if isinstance(file_profile, str):
-                        import json
-                        try:
-                            file_profile = json.loads(file_profile)
-                        except Exception as e:
-                            print(f"Skipping {file} due to JSON parsing error: {e}")
-                            continue
-
-                    if not isinstance(file_profile, dict) or "error" in file_profile:
-                        print(f"Skipping {file} due to analysis error: {file_profile.get('error', 'Unknown error')}")
-                        continue
-                    
-                    total_profile["files_analyzed"] += 1
-                    total_profile["component_profiles"][relative_path] = file_profile
-                    
-                    try:
-                        self._update_aggregate_profile(total_profile, file_profile)
-                    except Exception as e:
-                        print(f"Failed to update aggregate profile for {relative_path}: {e}")
-
+                if file.endswith('.py') and 'test' not in file and file != 'setup.py':
+                    python_files.append(os.path.join(root, file))
         
-        # Generate recommendations
-        total_profile["recommendations"] = self._generate_recommendations(total_profile)
+        if not python_files:
+            total_profile["recommendations"] = self._generate_recommendations(total_profile)
+            total_profile["network_summary"] = self.summarize_network_usage(total_profile)
+            return total_profile
         
-        return total_profile
-    
-    def _update_aggregate_profile(self, total_profile, file_profile):
-        """Update the aggregate profile with file-specific metrics"""
-        
-        if "memory" in file_profile:
-            mem_intensive_libs = file_profile["memory"].get("memory_intensive_libs", [])
-            large_structs = file_profile["memory"].get("large_data_structures", 0)
-        else:
-            print(f"File profile missing memo data for {file_profile}")
-            mem_intensive_libs = []
-            large_structs = 0
-
-        
-        if "pandas" in mem_intensive_libs or "numpy" in mem_intensive_libs:
-            total_profile["memory"]["estimated_base_mb"] += 100
-            total_profile["memory"]["scalability_factor"] = max(total_profile["memory"]["scalability_factor"], 1.5)
-        
-        if "tensorflow" in mem_intensive_libs or "torch" in mem_intensive_libs:
-            total_profile["memory"]["estimated_base_mb"] += 500
-            total_profile["memory"]["scalability_factor"] = max(
-                total_profile["memory"]["scalability_factor"], 2.0
+        with Pool() as pool:
+            file_profiles = pool.starmap(
+                self.analyzer.analyze_file,
+                [(f, repo_structure) for f in python_files]
             )
         
+        for file_path, file_profile in zip(python_files, file_profiles):
+            if isinstance(file_profile, dict) and "error" not in file_profile:
+                relative_path = os.path.relpath(file_path, repo_path)
+                total_profile["files_analyzed"] += 1
+                total_profile["component_profiles"][relative_path] = file_profile
+                source = file_profile.get("source", "static")
+                if source in total_profile["sources_used"]:
+                    total_profile["sources_used"][source] += 1
+                try:
+                    self._update_aggregate_profile(total_profile, file_profile)
+                except Exception as e:
+                    print(f"Failed to update aggregate profile for {relative_path}: {e}")
         
-        total_profile["memory"]["estimated_peak_mb"] += large_structs * 50
+        total_profile["recommendations"] = self._generate_recommendations(total_profile)
+        total_profile["network_summary"] = self.summarize_network_usage(total_profile)
         
-        # CPU
-        if "cpu" in file_profile:
-            if file_profile["cpu"].get("nested_loops", 0) > 1:
-                total_profile["cpu"]["cpu_bound_score"] += file_profile["cpu"]["nested_loops"]
+        return total_profile
 
-            if file_profile["cpu"].get("recursive_calls", 0) > 0:
-                total_profile["cpu"]["cpu_bound_score"] += file_profile["cpu"]["recursive_calls"] * 2
-        else:
-            print(f"File profile missing CPU data for {file_profile}")
-
+    def _update_aggregate_profile(self, total_profile, file_profile):
+        memory = file_profile.get("memory", {})
+        total_profile["memory"]["estimated_base_mb"] += memory.get("base_mb", 0.0)
+        total_profile["memory"]["estimated_peak_mb"] += memory.get("peak_mb", 0.0)
+        total_profile["memory"]["scaling_factor"] = max(
+            total_profile["memory"]["scaling_factor"],
+            memory.get("scaling_factor", 1.0)
+        )
         
-        # Adjust CPU requirements
-        if total_profile["cpu"]["cpu_bound_score"] > 5:
-            total_profile["cpu"]["estimated_cores"] = 2
-            total_profile["cpu"]["parallelization_potential"] = "medium"
-        
-        if total_profile["cpu"]["cpu_bound_score"] > 10:
-            total_profile["cpu"]["estimated_cores"] = 4
+        cpu = file_profile.get("cpu", {})
+        total_profile["cpu"]["estimated_cores"] += cpu.get("estimated_cores", 0.0)
+        if cpu.get("parallelization_potential", "low") == "high":
             total_profile["cpu"]["parallelization_potential"] = "high"
+        elif cpu.get("parallelization_potential", "low") == "medium":
+            total_profile["cpu"]["parallelization_potential"] = max(
+                total_profile["cpu"]["parallelization_potential"], "medium"
+            )
         
-        # Bandwidth estimates
-        network_calls = file_profile["bandwidth"]["network_calls"]
-        network_libs = file_profile["bandwidth"]["network_libraries"]
-        
-        if network_calls > 0:
-            total_profile["bandwidth"]["estimated_baseline_kbps"] += network_calls * 10
-            total_profile["bandwidth"]["estimated_peak_mbps"] += network_calls * 0.5
-        
-        if network_libs:
-            total_profile["bandwidth"]["data_transfer_frequency"] = "medium"
-            if network_calls > 10:
-                total_profile["bandwidth"]["data_transfer_frequency"] = "high"
-    
+        bandwidth = file_profile.get("bandwidth", {})
+        total_profile["bandwidth"]["network_calls_per_execution"] += bandwidth.get("network_calls_per_execution", 0)
+        total_profile["bandwidth"]["data_transfer_mb"] += bandwidth.get("data_transfer_mb", 0.0)
+        total_profile["bandwidth"]["bandwidth_mbps"] += bandwidth.get("bandwidth_mbps", 0.0)
+        if bandwidth.get("transfer_type", "bulk") == "streaming":
+            total_profile["bandwidth"]["transfer_type"] = "streaming"
+
+    def summarize_network_usage(self, total_profile):
+        network_libs = set()
+        total_calls = 0
+        total_data_mb = 0
+        for file_path, profile in total_profile["component_profiles"].items():
+            bandwidth = profile.get("bandwidth", {})
+            notes = bandwidth.get("notes", "")
+            for lib in self.analyzer.network_libs:
+                if lib in notes:
+                    network_libs.add(lib)
+            total_calls += bandwidth.get("network_calls_per_execution", 0)
+            total_data_mb += bandwidth.get("data_transfer_mb", 0.0)
+        return {
+            "network_libraries_used": list(network_libs),
+            "total_network_calls": total_calls,
+            "estimated_data_transfer_mb": total_data_mb,
+            "estimated_bandwidth_mbps": total_data_mb / 10,
+        }
+
     def _generate_recommendations(self, profile):
-        """Generate resource allocation recommendations"""
         recommendations = {
             "memory": {},
             "cpu": {},
@@ -133,41 +115,37 @@ class ResourceProfiler:
             "scaling": {},
         }
         
-        # Memory recommendations
         base_memory = profile["memory"]["estimated_base_mb"]
         peak_memory = profile["memory"]["estimated_peak_mb"]
-        scaling_factor = profile["memory"]["scalability_factor"]
+        scaling_factor = profile["memory"]["scaling_factor"]
         
-        recommendations["memory"]["min_allocation"] = f"{max(128, base_memory)}MB"
-        recommendations["memory"]["recommended_allocation"] = f"{max(256, base_memory + peak_memory)}MB"
+        recommendations["memory"]["min_allocation"] = f"{max(0, base_memory)}MB"
+        recommendations["memory"]["recommended_allocation"] = f"{max(0, base_memory + peak_memory)}MB"
         recommendations["memory"]["scaling_strategy"] = (
             "Static" if scaling_factor < 1.2 else 
             "Linear scaling with data size" if scaling_factor < 1.8 else
             "Exponential scaling with data size"
         )
         
-        # CPU recommendations
-        cpu_bound = profile["cpu"]["cpu_bound_score"] > 5
         estimated_cores = profile["cpu"]["estimated_cores"]
+        parallelization = profile["cpu"]["parallelization_potential"]
         
         recommendations["cpu"]["min_cores"] = 1
-        recommendations["cpu"]["recommended_cores"] = estimated_cores
+        recommendations["cpu"]["recommended_cores"] = max(1, round(estimated_cores))
         recommendations["cpu"]["core_scaling"] = (
-            "Fixed allocation" if not cpu_bound else
+            "Fixed allocation" if parallelization == "low" else
             "Scale with workload"
         )
         
-        # Bandwidth recommendations
-        baseline_kbps = profile["bandwidth"]["estimated_baseline_kbps"]
-        peak_mbps = profile["bandwidth"]["estimated_peak_mbps"]
+        baseline_kbps = profile["bandwidth"]["bandwidth_mbps"] * 8 * 1000 / 10
+        peak_mbps = profile["bandwidth"]["bandwidth_mbps"]
         
         recommendations["bandwidth"]["baseline_requirement"] = f"{baseline_kbps}Kbps"
         recommendations["bandwidth"]["peak_requirement"] = f"{peak_mbps}Mbps"
         
-        # Overall scaling recommendation
-        cpu_scaling_needed = cpu_bound
         memory_scaling_needed = scaling_factor > 1.5
-        bandwidth_scaling_needed = profile["bandwidth"]["data_transfer_frequency"] != "low"
+        cpu_scaling_needed = estimated_cores > 2
+        bandwidth_scaling_needed = profile["bandwidth"]["transfer_type"] == "streaming"
         
         scaling_dimensions = []
         if memory_scaling_needed:
