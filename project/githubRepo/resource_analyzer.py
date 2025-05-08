@@ -2,7 +2,9 @@ import ast
 import json
 import re
 import hashlib
+import openai
 from openai import OpenAI
+
 
 class ResourceAnalyzer:
     def __init__(self, llm_api_key):
@@ -28,9 +30,11 @@ class ResourceAnalyzer:
 
         llm_profile = self._get_llm_insights(code, file_path, repo_structure)
         if llm_profile and "error" not in llm_profile:
+            print(f"LLM analysis successful Initiated....\n")
             resource_profile = llm_profile
         else:
-            print(f"LLM failed for {file_path}, using static analysis")
+            print(f"LLM analyzing has failed for {file_path}, \n")
+            print(f"Shiffting to using STATIC ANALYSIS \n")
             resource_profile = {
                 "memory": self._estimate_memory_usage(code),
                 "cpu": self._estimate_cpu_usage(code),
@@ -83,21 +87,26 @@ class ResourceAnalyzer:
             Ensure all fields are populated with reasonable estimates. For CPU, estimate the number of cores based on computational intensity, parallelization potential, and code patterns (e.g., loops, recursion, multiprocessing usage).
             """
             response = self.llm_client.chat.completions.create(
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-            )
+                    model="gpt-4-turbo",
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"},
+                )
             res = response.choices[0].message.content
+            #print(f"\n{res}")
             return json.loads(res)
-        except Exception as e:
+        except openai.APIError as e:
             print(f"LLM analysis failed for {file_path}: {str(e)}")
+            return {"error": str(e)}
+        
+        except openai.APIConnectionError as e:
+            print(f"Failed to connect to OpenAI API: {e}")
             return {"error": str(e)}
 
     def _estimate_memory_usage(self, code):
         """Static fallback for memory usage estimation"""
         memory_profile = {
-            "base_mb": 10.0,
-            "peak_mb": 20.0,
+            "base_mb": 0.0,
+            "peak_mb": 0.0,
             "scaling_factor": 1.0,
             "notes": "Static fallback: basic Python runtime",
         }

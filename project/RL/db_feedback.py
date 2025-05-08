@@ -5,7 +5,7 @@ import os
 
 def init_database():
     """Initialize SQLite database"""
-    conn = sqlite3.connect("analysis_history.db")
+    conn = sqlite3.connect("LLM_analyzer_hs.db")
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS repository_analyses (

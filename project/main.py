@@ -11,6 +11,8 @@ from project.githubRepo.fetch_repo import RepoFetcher
 from project.githubRepo.resource_analyzer import ResourceAnalyzer
 from project.githubRepo.resource_profiler import ResourceProfiler
 
+load_dotenv(".env")
+
 class GithubResourceAnalyzer:
     def __init__(self, github_token=None, llm_api_key=None):
         self.repo_fetcher = RepoFetcher(github_token)
@@ -31,18 +33,20 @@ class GithubResourceAnalyzer:
         }
 
 def analyzer_main():
-    load_dotenv(".env")
+    
     repo_url = input("Enter the GitHub repository .git URL: ").strip()
     if not repo_url.endswith(".git"):
         print("Invalid URL. Please enter a valid GitHub .git URL.")
         return
     
-    github_token = os.getenv("GITHUB_TOKEN")
-    llm_api_key = os.getenv("OPENAI_API_KEY")
-    conn = init_database()
     
     try:
-        analyzer = GithubResourceAnalyzer(github_token=github_token, llm_api_key=llm_api_key)
+        
+        llm_api_key = os.getenv("OP_API_KEY")
+        conn = init_database()
+       
+        analyzer = GithubResourceAnalyzer(llm_api_key=llm_api_key)
+        print("keys:",llm_api_key)
         results = analyzer.analyze_repository(repo_url)
         
         results_json = "./Results/JSON/"
@@ -65,7 +69,7 @@ def analyzer_main():
         results_yaml = "./Results/YAML/"
         os.makedirs(results_yaml, exist_ok=True)
         config_path = os.path.join(results_yaml, f"config{timestamp}.yaml")
-        #generate_kubernetes_config(results, config_path) 
+        generate_kubernetes_config(results, config_path) 
         
         try:
             estimated = {
@@ -73,7 +77,7 @@ def analyzer_main():
                 "estimated_CPU_cores": results["profile"]["recommendations"]["cpu"]["recommended_cores"],
                 "estimated_network_bandwidth_kbps": results["profile"]["recommendations"]["bandwidth"]["peak_requirement"],
             }
-            print("\nestimated:", json.dumps(estimated, indent=2))
+            print("\nResources estimated:", json.dumps(estimated, indent=2))
         except KeyError as e:
             print(f"KeyError: {e}. keys were not found ")
     
