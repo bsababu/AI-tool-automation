@@ -5,7 +5,7 @@ import os
 
 def init_database():
     """Initialize SQLite database"""
-    conn = sqlite3.connect("LLM_analyzer_hs.db")
+    conn = sqlite3.connect("analysis_history.db")
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS repository_analyses (
@@ -109,3 +109,68 @@ def compare_and_log_changes(conn, results):
         conn.commit()
     
     return {"changes": changes, "message": "Changes detected." if changes else "No changes."}
+
+def get_latest_analysis(repo_url):
+    """Retrieve the latest analysis for a given repository URL"""
+    conn = sqlite3.connect("analysis_history.db")
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT profile, timestamp, commit_hash, sources_used
+            FROM repository_analyses
+            WHERE repo_url = ?
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """, (repo_url,))
+        result = cursor.fetchone()
+        if result:
+            return {
+                "profile": json.loads(result[0]),
+                "timestamp": result[1],
+                "commit_hash": result[2],
+                "sources_used": json.loads(result[3]),
+            }
+        return None
+    finally:
+        conn.close()
+
+def get_change_logs(repo_url):
+    """Retrieve changed logs"""
+    conn = sqlite3.connect("analysis_history.db")
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT timestamp, changes
+            FROM change_logs
+            WHERE repo_url = ?
+            ORDER BY timestamp DESC
+        """, (repo_url,))
+        results = cursor.fetchall()
+        return [{"timestamp": r[0], "changes": json.loads(r[1])} for r in results]
+    finally:
+        conn.close()
+
+def summarize_analysis(repo_url):
+    """Summarize the latest analysis for display"""
+    try:
+        analysis = get_latest_analysis(repo_url)
+
+        if not analysis:
+            return f"No analysis found for {repo_url}."
+        
+        profile = analysis["profile"]
+        recommendations = profile.get("recommendations", {})
+        memory = recommendations.get("memory", {}).get("recommended_allocation", "N/A")
+        cpu = recommendations.get("cpu", {}).get("recommended_cores", "N/A")
+        bandwidth = recommendations.get("bandwidth", {}).get("peak_requirement", "N/A")
+        sources = analysis["sources_used"]
+        
+        return (
+            f"Analysis Summary for {repo_url} (timestamp: {analysis['timestamp']}, commit: {analysis['commit_hash'][:7]}):\n"
+            f"- Memory: {memory}\n"
+            f"- CPU Cores: {cpu}\n"
+            f"- Bandwidth: {bandwidth}\n"
+            f"- Sources Used: LLM={sources['llm']}, Static={sources['static']}"
+        )
+    except Exception as e:
+        return f"Error retrieving analysis: {str(e)}"

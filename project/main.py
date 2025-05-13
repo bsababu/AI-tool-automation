@@ -1,6 +1,7 @@
 import json
 import os
 import datetime
+import time
 import git
 from dotenv import load_dotenv
 
@@ -32,21 +33,20 @@ class GithubResourceAnalyzer:
             "commit_hash": commit_hash,
         }
 
-def analyzer_main():
+def analyzer_main(repo_url, github_token, llm_api_key):
     
-    repo_url = input("Enter the GitHub repository .git URL: ").strip()
+    # repo_url = input("Enter the GitHub repository .git URL: ").strip()
     if not repo_url.endswith(".git"):
         print("Invalid URL. Please enter a valid GitHub .git URL.")
         return
     
     
     try:
-        
-        llm_api_key = os.getenv("OP_API_KEY")
+        start = time.time()
+        # llm_api_key = os.getenv("OP_API_KEY")
         conn = init_database()
        
         analyzer = GithubResourceAnalyzer(llm_api_key=llm_api_key)
-        print("keys:",llm_api_key)
         results = analyzer.analyze_repository(repo_url)
         
         results_json = "./Results/JSON/"
@@ -56,15 +56,15 @@ def analyzer_main():
         
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2)
-        print(f"Full JSON report saved....")
+        # print(f"Full JSON report saved....")
         
         store_analysis(conn, results)
         comparison = compare_and_log_changes(conn, results)
-        print("\nComparison with previous analysis:", comparison["message"])
-        if comparison["changes"]:
-            print("Changes detected:")
-            for change in comparison["changes"]:
-                print(f"- {change}")
+        # print("\nComparison with previous analysis:", comparison["message"])
+        # if comparison["changes"]:
+        #     print("Changes detected:")
+        #     for change in comparison["changes"]:
+        #         print(f"- {change}")
         
         results_yaml = "./Results/YAML/"
         os.makedirs(results_yaml, exist_ok=True)
@@ -75,11 +75,20 @@ def analyzer_main():
             estimated = {
                 "estimated_Memory": results["profile"]["recommendations"]["memory"]["recommended_allocation"],
                 "estimated_CPU_cores": results["profile"]["recommendations"]["cpu"]["recommended_cores"],
-                "estimated_network_bandwidth_kbps": results["profile"]["recommendations"]["bandwidth"]["peak_requirement"],
+                "estimated_network_bandwidth": results["profile"]["recommendations"]["bandwidth"]["peak_requirement"],
+                "json_path": json_path,
+                "config_path": config_path,
+                "comparison": comparison,
             }
-            print("\nResources estimated:", json.dumps(estimated, indent=2))
+            # print("\nResources estimated:", json.dumps(estimated, indent=2))
+            return {
+                "resuts": results,
+                "estimated": estimated
+                }
         except KeyError as e:
             print(f"KeyError: {e}. keys were not found ")
     
     finally:
         conn.close()
+        end = time.time()
+        print(f"Time taken for analysis: {end - start:.2f} seconds")

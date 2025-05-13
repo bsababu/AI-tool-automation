@@ -12,4 +12,4 @@ tests/__py*
 __pycache__/
 AnalyzedRepos/
 Results/
-analysis_hi*
+*.db

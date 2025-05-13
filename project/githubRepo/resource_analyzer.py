@@ -1,9 +1,11 @@
 import ast
 import json
+import os
 import re
 import hashlib
 import openai
 from openai import OpenAI
+from dotenv import load_dotenv
 
 
 class ResourceAnalyzer:
@@ -30,7 +32,7 @@ class ResourceAnalyzer:
 
         llm_profile = self._get_llm_insights(code, file_path, repo_structure)
         if llm_profile and "error" not in llm_profile:
-            print(f"LLM analysis successful Initiated....\n")
+            # print(f"LLM analysis successful Initiated....\n")
             resource_profile = llm_profile
         else:
             print(f"LLM analyzing has failed for {file_path}, \n")
@@ -47,6 +49,8 @@ class ResourceAnalyzer:
 
     def _get_llm_insights(self, code, file_path, repo_structure):
         """Get resource usage insights from LLM"""
+        load_dotenv("../.env")
+        modo = os.getenv("MODEL")
         try:
             repo_context = json.dumps(repo_structure, indent=2)
             prompt = f"""
@@ -87,12 +91,12 @@ class ResourceAnalyzer:
             Ensure all fields are populated with reasonable estimates. For CPU, estimate the number of cores based on computational intensity, parallelization potential, and code patterns (e.g., loops, recursion, multiprocessing usage).
             """
             response = self.llm_client.chat.completions.create(
-                    model="gpt-4-turbo",
+                    model=modo,
                     messages=[{"role": "user", "content": prompt}],
                     response_format={"type": "json_object"},
                 )
             res = response.choices[0].message.content
-            #print(f"\n{res}")
+            # print(f"\n{res}")
             return json.loads(res)
         except openai.APIError as e:
             print(f"LLM analysis failed for {file_path}: {str(e)}")

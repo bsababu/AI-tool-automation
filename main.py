@@ -1,6 +1,7 @@
 
-from project.main import analyzer_main
+
+from project.conversational import run_conversational_agent
+
 
 if __name__ == "__main__":
-    print("LLM analysis")
-    analyzer_main()
+    run_conversational_agent()

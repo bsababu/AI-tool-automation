@@ -103,7 +103,7 @@ class ResourceProfiler:
         return {
             "network_libraries_used": list(network_libs),
             "total_network_calls": total_calls,
-            "estimated_data_transfer_mb": total_data_mb,
+            "estimated_data_transfer_kbps": total_data_mb,
             "estimated_bandwidth_mbps": total_data_mb / 10,
         }
 
