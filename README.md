@@ -8,17 +8,19 @@ Accessing computational infrastructures is becoming increasingly complex, requir
 
 ### Key Features
 
-- Predict the estimated memory, CPU and network bandwidth.
+- the estimated memory usage, CPU usage, and network bandwidth.
 
-- loop feedback loop to adjust the configurated resources if there is a change in the source code.
+- loop feedback loop to adjust the configurated resources if there is a change in the source code and for agent analysis references.
 
 - Source Code Integration extracting: prompting the user to provide the source code of the project (github repository link) and extracting the required resources.
 
 - generate a configuration file: generating a configuration file based on the extracted information.
 
+- User-friendly interface: providing a simple and intuitive interface for users to interact with the tool by asking agent.
+
 ### Technical Requirements
 
-To build and deploy this tool, the following technologies are required:
+The project is built using the following technologies:
 
 - Python verion above 3.9.
 

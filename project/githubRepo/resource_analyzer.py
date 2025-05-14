@@ -3,8 +3,11 @@ import json
 import os
 import re
 import hashlib
+import sys
 import openai
 from openai import OpenAI
+import radon.complexity as rc
+import radon.metrics as rm
 from dotenv import load_dotenv
 
 
@@ -23,6 +26,39 @@ class ResourceAnalyzer:
                 return self._analyze_code(code, file_path, repo_structure)
             except Exception as e:
                 return {"error": str(e)}
+            
+
+            
+            
+    def get_file_size(self):
+        return os.path.getsize(self.file_path)
+
+    def line_of_codes(self):
+        with open(self.file_path, 'r', encoding='utf-8') as f:
+            return sum(1 for _ in f)
+
+    def calculate_overhead_per_line(self):
+        with open(self.file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        if not lines:
+            return 0
+        return sum(sys.getsizeof(line) for line in lines) / len(lines)
+    
+    def complexity_analysis(self):
+        with open(self.file_path, 'r', encoding='utf-8') as f:
+            code = f.read()
+
+        complexity_scores = rc.cc_visit(code)
+        maintainability_index = rm.mi_visit(code, True)
+        halstead_metrics = rm.h_visit(code)
+        cyclomatic_complexity = sum(c.complexity for c in complexity_scores)
+
+        return {
+            "cyclomatic_complexity": cyclomatic_complexity,
+            "halstead_metrics": halstead_metrics,
+            "maintainability_index": maintainability_index
+        }
+    
 
     def _analyze_code(self, code, file_path, repo_structure):
         """Use LLM for primary analysis, fallback to static if needed"""
@@ -34,15 +70,15 @@ class ResourceAnalyzer:
         if llm_profile and "error" not in llm_profile:
             # print(f"LLM analysis successful Initiated....\n")
             resource_profile = llm_profile
-        else:
-            print(f"LLM analyzing has failed for {file_path}, \n")
-            print(f"Shiffting to using STATIC ANALYSIS \n")
-            resource_profile = {
-                "memory": self._estimate_memory_usage(code),
-                "cpu": self._estimate_cpu_usage(code),
-                "bandwidth": self._estimate_bandwidth_usage(code),
-                "static_fallback": True,
-            }
+        # else:
+        #     print(f"LLM analyzing has failed for {file_path}, \n")
+        #     print(f"Shiffting to using STATIC ANALYSIS \n")
+        #     resource_profile = {
+        #         "memory": self._estimate_memory_usage(code),
+        #         "cpu": self._estimate_cpu_usage(code),
+        #         "bandwidth": self._estimate_bandwidth_usage(code),
+        #         "static_fallback": True,
+        #     }
 
         self.response_cache[code_hash] = resource_profile
         return resource_profile
@@ -63,15 +99,15 @@ class ResourceAnalyzer:
             ```python
             {code}
             ```
-
+            
             Provide a detailed JSON response with quantitative estimates for resource usage:
             ```json
             {{
                 "memory": {{
-                    "base_mb": float,  // Base memory requirement in MB
-                    "peak_mb": float,  // Peak memory requirement in MB
+                    "base_mb": float,  // Base memory requirement in unit storage (KB, MB, GB)
+                    "peak_mb": float,  // Peak memory requirement in unit storage (KB, MB, GB)
                     "scaling_factor": float,  // Scaling factor (1.0 = constant, >1.0 = grows with input)
-                    "notes": string  // Observations (e.g., large data structures, leaks)
+                    "notes": string  // Observations (e.g., large data structures, leaks),
                 }},
                 "cpu": {{
                     "complexity": string,  // Big-O notation (e.g., "O(n)", "O(n^2)")
@@ -88,7 +124,10 @@ class ResourceAnalyzer:
                 }}
             }}
             ```
-            Ensure all fields are populated with reasonable estimates. For CPU, estimate the number of cores based on computational intensity, parallelization potential, and code patterns (e.g., loops, recursion, multiprocessing usage).
+            Ensure all fields are populated with reasonable estimates. 
+            For CPU, estimate the number of cores based on computational intensity, parallelization potential, and code patterns (e.g., loops, recursion, multiprocessing usage).
+            For memory, consider the size of data structures, libraries used, lines of codes, overhead_per_line, and any potential memory leaks.
+            For bandwidth, estimate the number of network calls and data transfer size based on libraries used and code patterns.
             """
             response = self.llm_client.chat.completions.create(
                     model=modo,
@@ -136,7 +175,7 @@ class ResourceAnalyzer:
         
         return memory_profile
 
-    def _estimate_cpu_usage(self, code):
+    #def _estimate_cpu_usage(self, code):
         """Static fallback for CPU usage estimation"""
         cpu_profile = {
             "complexity": "O(n)",
@@ -176,7 +215,7 @@ class ResourceAnalyzer:
         
         return cpu_profile
 
-    def _estimate_bandwidth_usage(self, code):
+    #def _estimate_bandwidth_usage(self, code):
         """Static fallback for bandwidth usage estimation"""
         bandwidth_profile = {
             "network_calls_per_execution": 0,

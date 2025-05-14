@@ -50,7 +50,7 @@ class ResourceProfiler:
                 relative_path = os.path.relpath(file_path, repo_path)
                 total_profile["files_analyzed"] += 1
                 total_profile["component_profiles"][relative_path] = file_profile
-                source = file_profile.get("source", "static")
+                source = file_profile.get("source", "llm")
                 if source in total_profile["sources_used"]:
                     total_profile["sources_used"][source] += 1
                 try:
@@ -65,15 +65,18 @@ class ResourceProfiler:
 
     def _update_aggregate_profile(self, total_profile, file_profile):
         memory = file_profile.get("memory", {})
-        total_profile["memory"]["estimated_base_mb"] += memory.get("base_mb", 0.0)
-        total_profile["memory"]["estimated_peak_mb"] += memory.get("peak_mb", 0.0)
+        total_profile["memory"]["estimated_base_mb"] += max(memory.get("base_mb", 0.0), 10.0)
+        total_profile["memory"]["estimated_peak_mb"] += max(memory.get("peak_mb", 0.0), 20.0)
         total_profile["memory"]["scaling_factor"] = max(
             total_profile["memory"]["scaling_factor"],
             memory.get("scaling_factor", 1.0)
         )
         
         cpu = file_profile.get("cpu", {})
-        total_profile["cpu"]["estimated_cores"] += cpu.get("estimated_cores", 0.0)
+        total_profile["cpu"]["estimated_cores"] = max(
+            total_profile["cpu"]["estimated_cores"],
+            cpu.get("estimated_cores", 0.0)
+        )
         if cpu.get("parallelization_potential", "low") == "high":
             total_profile["cpu"]["parallelization_potential"] = "high"
         elif cpu.get("parallelization_potential", "low") == "medium":
@@ -84,9 +87,10 @@ class ResourceProfiler:
         bandwidth = file_profile.get("bandwidth", {})
         total_profile["bandwidth"]["network_calls_per_execution"] += bandwidth.get("network_calls_per_execution", 0)
         total_profile["bandwidth"]["data_transfer_mb"] += bandwidth.get("data_transfer_mb", 0.0)
-        total_profile["bandwidth"]["bandwidth_mbps"] += bandwidth.get("bandwidth_mbps", 0.0)
+        total_profile["bandwidth"]["bandwidth_mbps"] += max(bandwidth.get("bandwidth_mbps", 0.0), 0.1)
         if bandwidth.get("transfer_type", "bulk") == "streaming":
             total_profile["bandwidth"]["transfer_type"] = "streaming"
+
 
     def summarize_network_usage(self, total_profile):
         network_libs = set()
