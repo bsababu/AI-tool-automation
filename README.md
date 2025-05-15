@@ -4,7 +4,7 @@
 
 Accessing computational infrastructures is becoming increasingly complex, requiring manual effort to configure and deploy platforms efficiently. This project introduces an AI-powered tool that automates the configuration of computing platforms, by analyzing the codes and predicting the required resource requirements with the LLM (gpt-4) by passing the source of the project (github repository link).
 
-!["The architecture of the project"](/project/llm-analyzer_arch.png)
+!["The architecture of the project"](/architecture.png)
 
 ### Key Features
 

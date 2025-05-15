@@ -1,6 +1,7 @@
 implem/.env
 implem/mprofile_*
 .DS_Store
+.vscode/
 envThesis/
 project/config.json
 implem/*
