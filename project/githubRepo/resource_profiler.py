@@ -8,20 +8,25 @@ class ResourceProfiler:
 
     def profile_repository(self, repo_path, repo_structure):
         total_profile = {
-            "memory": {
-                "estimated_base_mb": 0.0,
-                "estimated_peak_mb": 0.0,
-                "scaling_factor": 1.0,
-            },
-            "cpu": {
-                "estimated_cores": 0.0,
-                "parallelization_potential": "low",
-            },
-            "bandwidth": {
-                "network_calls_per_execution": 0,
-                "data_transfer_mb": 0.0,
-                "bandwidth_mbps": 0.0,
-                "transfer_type": "bulk",
+            "resources": {
+                "memory": {
+                    "estimated_base_mb": 0.0,
+                    "estimated_peak_mb": 0.0,
+                    "scaling_factor": 1.0,
+                    "notes": ""
+                },
+                "cpu": {
+                    "estimated_cores": 0.0,
+                    "parallelization_potential": "low",
+                    "notes": ""
+                },
+                "bandwidth": {
+                    "network_calls_per_execution": 0,
+                    "data_transfer_mb": 0.0,
+                    "bandwidth_mbps": 0.0,
+                    "transfer_type": "bulk",
+                    "notes": ""
+                },
             },
             "files_analyzed": 0,
             "component_profiles": {},
@@ -64,33 +69,37 @@ class ResourceProfiler:
         return total_profile
 
     def _update_aggregate_profile(self, total_profile, file_profile):
-        memory = file_profile.get("memory", {})
-        total_profile["memory"]["estimated_base_mb"] += max(memory.get("base_mb", 0.0), 10.0)
-        total_profile["memory"]["estimated_peak_mb"] += max(memory.get("peak_mb", 0.0), 20.0)
-        total_profile["memory"]["scaling_factor"] = max(
-            total_profile["memory"]["scaling_factor"],
+        # Check if file_profile has resources (from LLM) or direct metrics
+        file_resources = file_profile.get("resources", file_profile)
+        memory = file_resources.get("memory", {})
+        total_profile["resources"]["memory"]["estimated_base_mb"] += max(memory.get("base_mb", 0.0), 10.0)
+        total_profile["resources"]["memory"]["estimated_peak_mb"] += max(memory.get("peak_mb", 0.0), 20.0)
+        total_profile["resources"]["memory"]["scaling_factor"] = max(
+            total_profile["resources"]["memory"]["scaling_factor"],
             memory.get("scaling_factor", 1.0)
         )
+        total_profile["resources"]["memory"]["notes"] += (memory.get("notes", "") + "; ") if memory.get("notes") else ""
         
-        cpu = file_profile.get("cpu", {})
-        total_profile["cpu"]["estimated_cores"] = max(
-            total_profile["cpu"]["estimated_cores"],
+        cpu = file_resources.get("cpu", {})
+        total_profile["resources"]["cpu"]["estimated_cores"] = max(
+            total_profile["resources"]["cpu"]["estimated_cores"],
             cpu.get("estimated_cores", 0.0)
         )
         if cpu.get("parallelization_potential", "low") == "high":
-            total_profile["cpu"]["parallelization_potential"] = "high"
+            total_profile["resources"]["cpu"]["parallelization_potential"] = "high"
         elif cpu.get("parallelization_potential", "low") == "medium":
-            total_profile["cpu"]["parallelization_potential"] = max(
-                total_profile["cpu"]["parallelization_potential"], "medium"
+            total_profile["resources"]["cpu"]["parallelization_potential"] = max(
+                total_profile["resources"]["cpu"]["parallelization_potential"], "medium"
             )
+        total_profile["resources"]["cpu"]["notes"] += (cpu.get("notes", "") + "; ") if cpu.get("notes") else ""
         
-        bandwidth = file_profile.get("bandwidth", {})
-        total_profile["bandwidth"]["network_calls_per_execution"] += bandwidth.get("network_calls_per_execution", 0)
-        total_profile["bandwidth"]["data_transfer_mb"] += bandwidth.get("data_transfer_mb", 0.0)
-        total_profile["bandwidth"]["bandwidth_mbps"] += max(bandwidth.get("bandwidth_mbps", 0.0), 0.1)
+        bandwidth = file_resources.get("bandwidth", {})
+        total_profile["resources"]["bandwidth"]["network_calls_per_execution"] += bandwidth.get("network_calls_per_execution", 0)
+        total_profile["resources"]["bandwidth"]["data_transfer_mb"] += bandwidth.get("data_transfer_mb", 0.0)
+        total_profile["resources"]["bandwidth"]["bandwidth_mbps"] += max(bandwidth.get("bandwidth_mbps", 0.0), 0.1)
         if bandwidth.get("transfer_type", "bulk") == "streaming":
-            total_profile["bandwidth"]["transfer_type"] = "streaming"
-
+            total_profile["resources"]["bandwidth"]["transfer_type"] = "streaming"
+        total_profile["resources"]["bandwidth"]["notes"] += (bandwidth.get("notes", "") + "; ") if bandwidth.get("notes") else ""
 
     def summarize_network_usage(self, total_profile):
         network_libs = set()
@@ -119,9 +128,9 @@ class ResourceProfiler:
             "scaling": {},
         }
         
-        base_memory = profile["memory"]["estimated_base_mb"]
-        peak_memory = profile["memory"]["estimated_peak_mb"]
-        scaling_factor = profile["memory"]["scaling_factor"]
+        base_memory = profile["resources"]["memory"]["estimated_base_mb"]
+        peak_memory = profile["resources"]["memory"]["estimated_peak_mb"]
+        scaling_factor = profile["resources"]["memory"]["scaling_factor"]
         
         recommendations["memory"]["min_allocation"] = f"{max(0, base_memory)}MB"
         recommendations["memory"]["recommended_allocation"] = f"{max(0, base_memory + peak_memory)}MB"
@@ -131,8 +140,8 @@ class ResourceProfiler:
             "Exponential scaling with data size"
         )
         
-        estimated_cores = profile["cpu"]["estimated_cores"]
-        parallelization = profile["cpu"]["parallelization_potential"]
+        estimated_cores = profile["resources"]["cpu"]["estimated_cores"]
+        parallelization = profile["resources"]["cpu"]["parallelization_potential"]
         
         recommendations["cpu"]["min_cores"] = 1
         recommendations["cpu"]["recommended_cores"] = max(1, round(estimated_cores))
@@ -141,15 +150,15 @@ class ResourceProfiler:
             "Scale with workload"
         )
         
-        baseline_kbps = profile["bandwidth"]["bandwidth_mbps"] * 8 * 1000 / 10
-        peak_mbps = profile["bandwidth"]["bandwidth_mbps"]
+        baseline_kbps = profile["resources"]["bandwidth"]["bandwidth_mbps"] * 8 * 1000 / 10
+        peak_mbps = profile["resources"]["bandwidth"]["bandwidth_mbps"]
         
         recommendations["bandwidth"]["baseline_requirement"] = f"{baseline_kbps}Kbps"
         recommendations["bandwidth"]["peak_requirement"] = f"{peak_mbps}Mbps"
         
         memory_scaling_needed = scaling_factor > 1.5
         cpu_scaling_needed = estimated_cores > 2
-        bandwidth_scaling_needed = profile["bandwidth"]["transfer_type"] == "streaming"
+        bandwidth_scaling_needed = profile["resources"]["bandwidth"]["transfer_type"] == "streaming"
         
         scaling_dimensions = []
         if memory_scaling_needed:

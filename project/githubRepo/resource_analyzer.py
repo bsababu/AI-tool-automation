@@ -199,7 +199,7 @@ class ResourceAnalyzer:
                 response_format={"type": "json_object"},
             )
             res = response.choices[0].message.content
-            print(f"LLM analysis successful for {file_path}, response: {res}")
+            #print(f"LLM analysis successful for {file_path}, response: {res}")
             parsed = json.loads(res)
             parsed["memory"]["base_mb"] = max(parsed["memory"].get("base_mb", 10.0), 10.0)
             parsed["memory"]["peak_mb"] = max(parsed["memory"].get("peak_mb", 20.0), 20.0)
