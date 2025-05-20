@@ -33,29 +33,42 @@ The project is built using the following technologies:
 
 #### Usage
 
-- create a virtual environment (optional but recommended) to avoid dependency conflicts:
+1. create a virtual environment (optional but recommended) to avoid dependency conflicts:
 
     ``` python -m venv envpyAi ```
 
-- Clone the repository:
+2. Clone the repository:
 
     ``` git clone https://github.com/your-repo/ai-computing-tool.git ```
 
-- Navigate to the project directory:
+3. Navigate to the project directory:
 
     ``` cd ai-computing-tool ```
 
-- Install the dependecies from the requirements file:
+4. Install the dependecies from the requirements file:
 
     ``` pip install -r requirements.txt ```
 
-- Set up your OpenAI API key in .env file (create it if it doesn't exist):
+5. Set up your OpenAI API key in .env file (create it if it doesn't exist):
 
     - assign the keys variable OPEN_api_KEYS
 
-- Start the AI-powered configuration tool:
+6. Start the AI-powered configuration tool:
 
     ``` python -m main ```
+
+
+#### For Web Interface
+
+After step 5 from above ☝️, navigate to project/web directory:
+
+``` cd project/web ```
+
+Then run the following command to start the web server:
+
+``` python -m run_panel_server```
+
+!["The chat interface"](project/web/crewAI.png)
 
 #### Contributing
 

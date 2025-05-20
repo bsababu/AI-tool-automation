@@ -14,3 +14,6 @@ __pycache__/
 AnalyzedRepos/
 Results/
 *.db
+report/
+images/
+analyses.jsonl
