@@ -4,17 +4,19 @@ from dotenv import load_dotenv
 from crewai import Agent, Process, Task, Crew
 from langchain.tools import BaseTool
 from crewai.tools import BaseTool
-from project.RL.db_feedback import get_change_logs, get_latest_analysis, summarize_analysis
-from project.container.kubernates import generate_kubernetes_config, generate_terraform_config
-from project.main import analyzer_main
+from RL.db_feedback import get_change_logs, get_latest_analysis, summarize_analysis
+from container.kubernates import generate_kubernetes_config, generate_terraform_config
+from conversational.run_convo import analyzer_main
 
 
-# Custom CrewAI Tools
+
+
 class GetLatestAnalysisTool(BaseTool):
     name: str = "Get Latest Analysis"
     description: str = "Retrieves the latest analysis results for a given repository URL from the database."
 
     def _run(self, repo_url: str) -> str:
+        analysis = get_latest_analysis(repo_url)
         return summarize_analysis(repo_url)
 
 class GetChangeLogsTool(BaseTool):
@@ -177,5 +179,5 @@ def run_conversational_agent():
             print(f"Error processing query: {str(e)}")
 
 
-if __name__ == "__main__":
-    run_conversational_agent()
+# if __name__ == "__main__":
+#     run_conversational_agent()

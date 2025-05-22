@@ -70,6 +70,12 @@ Then run the following command to start the web server:
 
 !["The chat interface"](project/web/crewAI.png)
 
+
+#### For Test Cases
+To run the test cases, navigate to the project directory and run:
+
+``` python -m unittest project/test/ ```
+
 #### Contributing
 
 ###### Kindly do the following: 

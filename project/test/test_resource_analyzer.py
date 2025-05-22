@@ -2,9 +2,11 @@ import unittest
 import os
 import json
 from unittest.mock import patch, MagicMock, mock_open
-import tempfile
+import openai
 import sys
 from io import StringIO
+
+from dotenv import load_dotenv
 
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -14,12 +16,9 @@ from githubRepo.resource_analyzer import ResourceAnalyzer
 
 class TestResourceAnalyzer(unittest.TestCase):
     def setUp(self):
-        self.patcher = patch.dict('os.environ', {
-        'OPENAI_API_KEY': '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',
-        'MODEL': 'gpt-3.5-turbo'  # Use cheaper model for testing
-        })
-        self.patcher.start()
-        self.analyzer = ResourceAnalyzer(os.getenv('OPENAI_API_KEY'))
+        load_dotenv("../.env")
+        llm_api_key = os.getenv("TEST_KEY_O")
+        self.analyzer = ResourceAnalyzer(llm_api_key)
         
         # Sample Python code for testing
         self.sample_code = """
@@ -106,31 +105,65 @@ class TestResourceAnalyzer(unittest.TestCase):
         self.assertGreater(bandwidth_profile["network_calls_per_execution"], 0)
         self.assertGreater(bandwidth_profile["data_transfer_mb"], 0.0)
 
-    @patch('openai.OpenAI')
-    def test_get_llm_insights_success(self, mock_openai):
+    @patch('githubRepo.resource_analyzer.load_dotenv')
+    @patch('githubRepo.resource_analyzer.os.getenv')
+    def test_get_llm_insights_success(self, mock_getenv, mock_load_dotenv):
         """Test successful LLM insights retrieval"""
-        # Mock the OpenAI client response
+
+        # Set up environment mocks
+        mock_getenv.side_effect = lambda key: {
+            "OPENAI_API_KEY": "12345677",
+            "MODEL": "gpt-3.5-turbo",
+        }.get(key)
+
+        # Prepare the mocked LLM client
+        mock_response = MagicMock()
+        mock_choice = MagicMock()
+        mock_message = MagicMock()
+        mock_message.content = json.dumps({
+            "memory": {"base_mb": 100.0, "peak_mb": 200.0, "scaling_factor": 2.0, "notes": "Test"},
+            "cpu": {"complexity": "O(n)", "estimated_cores": 2.0, "parallelization_potential": "medium", "notes": "Test"},
+            "bandwidth": {"network_calls_per_execution": 1, "data_transfer_mb": 2.0, "bandwidth_mbps": 1.0, "transfer_type": "bulk", "notes": "Test"}
+        })
+        mock_choice.message = mock_message
+        mock_response.choices = [mock_choice]
+
+        mock_llm_client = MagicMock()
+        mock_llm_client.chat.completions.create.return_value = mock_response
+
+        # Inject the mocked LLM client
+        self.analyzer.llm_client = mock_llm_client
+
+        result = self.analyzer._get_llm_insights(
+            self.sample_code,
+            "test.py",
+            self.repo_structure,
+            {"loc": 20, "libraries": ["pandas", "requests"]}
+        )
+
+        self.assertIsInstance(result, dict)
+        self.assertIn("memory", result)
+        self.assertIn("cpu", result)
+        self.assertIn("bandwidth", result)
+        self.assertEqual(result["memory"]["base_mb"], 150.0)
+        self.assertEqual(result["memory"]["peak_mb"], 300.0)
+        self.assertEqual(result["cpu"]["complexity"], "O(n^2)")
+        self.assertEqual(result["bandwidth"]["network_calls_per_execution"], 5)
+
+
+    @patch('openai.OpenAI')
+    def test_get_llm_insights_failure(self, mock_openai):
+        """Test LLM insights failure and error handling"""
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = openai.APIError("API Error")
         
-        mock_response = MagicMock()
-        mock_response.choices[0].message.content = json.dumps({
-            "memory": {"base_mb": 150.0, "peak_mb": 300.0, "scaling_factor": 2.0, "notes": "Test"},
-            "cpu": {"complexity": "O(n^2)", "estimated_cores": 2.0, "parallelization_potential": "medium", "notes": "Test"},
-            "bandwidth": {"network_calls_per_execution": 5, "data_transfer_mb": 2.0, "bandwidth_mbps": 1.0, "transfer_type": "bulk", "notes": "Test"}
-        })
-        mock_client.chat.completions.create.return_value = mock_response
-        
-        with patch('os.getenv', return_value='gpt-4-turbo'):
+        with patch('os.getenv', return_value='gpt-3.5-turbo'):
             result = self.analyzer._get_llm_insights(self.sample_code, "test.py", self.repo_structure, {"loc": 20, "libraries": ["pandas", "requests"]})
             
             self.assertIsInstance(result, dict)
-            self.assertIn("memory", result)
-            self.assertIn("cpu", result)
-            self.assertIn("bandwidth", result)
-            self.assertEqual(result["memory"]["base_mb"], 150.0)
-            self.assertEqual(result["cpu"]["complexity"], "O(n^2)")
-            self.assertEqual(result["bandwidth"]["network_calls_per_execution"], 5)
+            self.assertIn("error", result)
+            self.assertEqual(result["error"], "API Error")
 
     @patch('openai.OpenAI')
     def test_get_llm_insights_failure(self, mock_openai):
@@ -140,7 +173,7 @@ class TestResourceAnalyzer(unittest.TestCase):
         mock_openai.return_value = mock_client
         mock_client.chat.completions.create.side_effect = Exception("API Error")
         
-        with patch('os.getenv', return_value='gpt-4-turbo'):
+        with patch('os.getenv', return_value='gpt-3.5-turbo'):
             result = self.analyzer._get_llm_insights(self.sample_code, "test.py", self.repo_structure, {"loc": 20, "libraries": ["pandas", "requests"]})
             
             self.assertIsInstance(result, dict)
@@ -150,7 +183,6 @@ class TestResourceAnalyzer(unittest.TestCase):
     def test_analyze_file_with_flask(self, mock_file):
         """Test analyzing a Flask application file"""
         with patch.object(self.analyzer, '_get_llm_insights') as mock_llm:
-            # Simulate LLM failure to test static fallback
             mock_llm.return_value = {"error": "LLM failed"}
             
             result = self.analyzer.analyze_file("app.py", self.repo_structure)

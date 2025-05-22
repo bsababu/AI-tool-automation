@@ -1,6 +1,6 @@
 
 
-from project.conversational import run_conversational_agent
+from project.conversational.conversational import run_conversational_agent
 
 
 if __name__ == "__main__":

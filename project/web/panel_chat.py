@@ -8,7 +8,7 @@ from crewai import Agent, Process, Task, Crew
 
 from project.RL.db_feedback import summarize_analysis
 from project.conversational import GenerateKubernetesConfigTool, GenerateTerraformConfigTool, GetChangeLogsTool, GetLatestAnalysisTool, SummarizeAnalysisTool
-from project.main import analyzer_main
+from project.conversational.run_convo import analyzer_main
 
 load_dotenv()
 github_token = os.getenv("GITHUB_TOKEN")

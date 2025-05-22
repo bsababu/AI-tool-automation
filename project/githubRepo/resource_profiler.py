@@ -132,8 +132,8 @@ class ResourceProfiler:
         peak_memory = profile["resources"]["memory"]["estimated_peak_mb"]
         scaling_factor = profile["resources"]["memory"]["scaling_factor"]
         
-        recommendations["memory"]["min_allocation"] = f"{max(0, base_memory)}MB"
-        recommendations["memory"]["recommended_allocation"] = f"{max(0, base_memory + peak_memory)}MB"
+        recommendations["memory"]["min_allocation"] = f"{int(base_memory)}MB"
+        recommendations["memory"]["recommended_allocation"] = f"{int(max(0, base_memory + peak_memory))}MB"
         recommendations["memory"]["scaling_strategy"] = (
             "Static" if scaling_factor < 1.2 else 
             "Linear scaling with data size" if scaling_factor < 1.8 else

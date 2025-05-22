@@ -6,11 +6,11 @@ import git
 from dotenv import load_dotenv
 
 
-from project.RL.db_feedback import compare_and_log_changes, init_database, store_analysis
-from project.container.kubernates import generate_kubernetes_config
-from project.githubRepo.fetch_repo import RepoFetcher
-from project.githubRepo.resource_analyzer import ResourceAnalyzer
-from project.githubRepo.resource_profiler import ResourceProfiler
+from RL.db_feedback import compare_and_log_changes, init_database, store_analysis
+from container.kubernates import generate_kubernetes_config
+from githubRepo.fetch_repo import RepoFetcher
+from githubRepo.resource_analyzer import ResourceAnalyzer
+from githubRepo.resource_profiler import ResourceProfiler
 
 load_dotenv(".env")
 
@@ -60,12 +60,6 @@ def analyzer_main(repo_url, github_token, llm_api_key):
         
         store_analysis(conn, results)
         comparison = compare_and_log_changes(conn, results)
-        # print("\nComparison with previous analysis:", comparison["message"])
-        # if comparison["changes"]:
-        #     print("Changes detected:")
-        #     for change in comparison["changes"]:
-        #         print(f"- {change}")
-        
         results_yaml = "./Results/YAML/"
         os.makedirs(results_yaml, exist_ok=True)
         config_path = os.path.join(results_yaml, f"config{timestamp}.yaml")

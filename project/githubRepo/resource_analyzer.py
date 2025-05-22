@@ -129,17 +129,17 @@ class ResourceAnalyzer:
             print(f"Syntax error in {file_path}: {str(e)}")
         return metrics
 
-    @backoff.on_exception(backoff.expo, (openai.AuthenticationError, openai.APIError), 
+    @backoff.on_exception(backoff.expo, (openai.AuthenticationError, openai.APIError, openai.RateLimitError), 
     max_tries=3, giveup=lambda e: isinstance(e, openai.AuthenticationError))
     
     def _get_llm_insights(self, code, file_path, repo_structure, metrics):
         """Get resource usage insights from LLM with retry on rate limit"""
         try:
-            load_dotenv()
+            load_dotenv("../.env")
             api_key = os.getenv("OPENAI_API_KEY")
             if not api_key:
                 return {"error": "keys environment variable not set"}
-            modo = os.getenv("MODEL") or "gpt-4-turbo"
+            modo = os.getenv("MODEL")
             print(f"Attempting LLM analysis for {file_path} with model {modo}")
             # Truncate code to 500 lines to reduce token usage
             code_lines = code.splitlines()
@@ -218,7 +218,7 @@ class ResourceAnalyzer:
                 response_format={"type": "json_object"},
             )
             res = response.choices[0].message.content
-            #print(f"LLM analysis successful for {file_path}, response: {res}")
+            print(f"LLM analysis successful for {file_path}, response: {res}")
             parsed = json.loads(res)
 
             if not isinstance(parsed, dict):
@@ -240,7 +240,7 @@ class ResourceAnalyzer:
                     
             return parsed
             
-        except (openai.APIError, openai.APIConnectionError, json.JSONDecodeError) as e:
+        except (openai.APIError, openai.APIConnectionError, json.JSONDecodeError, openai.RateLimitError) as e:
             print(f"LLM analysis failed for {file_path}: {str(e)}")
             return {"error": str(e)}
         except Exception as e:
