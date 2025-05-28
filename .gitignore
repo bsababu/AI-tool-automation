@@ -3,6 +3,7 @@ implem/mprofile_*
 .DS_Store
 .vscode/
 envThesis/
+envpyAi/
 project/config.json
 implem/*
 project/__py*

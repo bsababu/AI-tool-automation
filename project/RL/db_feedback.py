@@ -16,7 +16,8 @@ def init_database():
             structure TEXT NOT NULL,
             profile TEXT NOT NULL,
             sources_used TEXT NOT NULL,
-            static_metrics TEXT NOT NULL DEFAULT '{}'
+            static_metrics TEXT NOT NULL DEFAULT '{}',
+            cloud_configs TEXT NOT NULL DEFAULT '{}'
         )
     """)
     cursor.execute("""
@@ -27,9 +28,21 @@ def init_database():
             changes TEXT NOT NULL
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cloud_config_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            repo_url TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            platform TEXT NOT NULL,
+            config_path TEXT NOT NULL,
+            feedback_score INTEGER,
+            feedback_notes TEXT
+        )
+    """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_repo_url ON repository_analyses(repo_url)")
     try:
         cursor.execute("ALTER TABLE repository_analyses ADD COLUMN static_metrics TEXT NOT NULL DEFAULT '{}'")
+        cursor.execute("ALTER TABLE repository_analyses ADD COLUMN cloud_configs TEXT NOT NULL DEFAULT '{}'")
     except sqlite3.OperationalError:
         pass
     conn.commit()
@@ -49,7 +62,8 @@ def save_to_jsonl(results):
         "structure": results["structure"],
         "profile": results["profile"],
         "sources_used": results["profile"].get("sources_used", {"llm": 0, "static": 0}),
-        "static_metrics": results["profile"].get("static_metrics", {})
+        "static_metrics": results["profile"].get("static_metrics", {}),
+        "cloud_configs": results.get("cloud_configs", {})
     }
     
     # Append to JSONL file
@@ -63,9 +77,12 @@ def store_analysis(conn, results):
     cursor = conn.cursor()
     sources_used = results["profile"].get("sources_used", {"llm": 0, "static": 0})
     static_metrics = results["profile"].get("static_metrics", {})
+    cloud_configs = results.get("cloud_configs", {})
+    
     cursor.execute("""
-        INSERT INTO repository_analyses (repo_url, timestamp, commit_hash, structure, profile, sources_used, static_metrics)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO repository_analyses 
+        (repo_url, timestamp, commit_hash, structure, profile, sources_used, static_metrics, cloud_configs)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         results["repository_url"],
         datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -74,6 +91,7 @@ def store_analysis(conn, results):
         json.dumps(results["profile"]),
         json.dumps(sources_used),
         json.dumps(static_metrics),
+        json.dumps(cloud_configs),
     ))
     conn.commit()
     
@@ -81,11 +99,58 @@ def store_analysis(conn, results):
     jsonl_path = save_to_jsonl(results)
     print(f"Saved analysis to JSONL at {jsonl_path}")
 
+def store_cloud_config_feedback(conn, repo_url, platform, config_path, feedback_score, feedback_notes=""):
+    """Store feedback about generated cloud configurations"""
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO cloud_config_feedback 
+        (repo_url, timestamp, platform, config_path, feedback_score, feedback_notes)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        repo_url,
+        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        platform,
+        config_path,
+        feedback_score,
+        feedback_notes
+    ))
+    conn.commit()
+
+def get_cloud_config_feedback(repo_url, platform=None):
+    """Retrieve feedback for cloud configurations"""
+    conn = sqlite3.connect("analysis_history.db")
+    try:
+        cursor = conn.cursor()
+        if platform:
+            cursor.execute("""
+                SELECT platform, config_path, feedback_score, feedback_notes, timestamp
+                FROM cloud_config_feedback
+                WHERE repo_url = ? AND platform = ?
+                ORDER BY timestamp DESC
+            """, (repo_url, platform))
+        else:
+            cursor.execute("""
+                SELECT platform, config_path, feedback_score, feedback_notes, timestamp
+                FROM cloud_config_feedback
+                WHERE repo_url = ?
+                ORDER BY timestamp DESC
+            """, (repo_url,))
+        results = cursor.fetchall()
+        return [{
+            "platform": r[0],
+            "config_path": r[1],
+            "feedback_score": r[2],
+            "feedback_notes": r[3],
+            "timestamp": r[4]
+        } for r in results]
+    finally:
+        conn.close()
+
 def compare_and_log_changes(conn, results):
     """Compare with previous analysis and log changes"""
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT structure, profile, commit_hash, static_metrics
+        SELECT structure, profile, commit_hash, static_metrics, cloud_configs
         FROM repository_analyses
         WHERE repo_url = ?
         ORDER BY timestamp DESC
@@ -95,8 +160,17 @@ def compare_and_log_changes(conn, results):
     if not previous:
         return {"changes": [], "message": "No previous analysis found."}
     
-    prev_structure, prev_profile, prev_commit_hash, prev_metrics = json.loads(previous[0]), json.loads(previous[1]), previous[2], json.loads(previous[3] or '{}')
-    curr_structure, curr_profile, curr_commit_hash, curr_metrics = results["structure"], results["profile"], results["commit_hash"], results["profile"].get("static_metrics", {})
+    prev_structure = json.loads(previous[0])
+    prev_profile = json.loads(previous[1])
+    prev_commit_hash = previous[2]
+    prev_metrics = json.loads(previous[3] or '{}')
+    prev_configs = json.loads(previous[4] or '{}')
+    
+    curr_structure = results["structure"]
+    curr_profile = results["profile"]
+    curr_commit_hash = results["commit_hash"]
+    curr_metrics = results["profile"].get("static_metrics", {})
+    curr_configs = results.get("cloud_configs", {})
     
     changes = []
     if prev_commit_hash != curr_commit_hash:
@@ -130,6 +204,17 @@ def compare_and_log_changes(conn, results):
     for source in ["llm", "static"]:
         if curr_sources[source] != prev_sources[source]:
             changes.append(f"{source.capitalize()} analysis: {curr_sources[source]} (prev: {prev_sources[source]})")
+    
+    # Add cloud configuration changes
+    if prev_configs != curr_configs:
+        changes.append("Cloud configurations have been updated")
+        for platform in set(prev_configs.keys()) | set(curr_configs.keys()):
+            if platform not in prev_configs:
+                changes.append(f"Added {platform} configuration")
+            elif platform not in curr_configs:
+                changes.append(f"Removed {platform} configuration")
+            elif prev_configs[platform] != curr_configs[platform]:
+                changes.append(f"Updated {platform} configuration")
     
     if changes:
         cursor.execute("""
