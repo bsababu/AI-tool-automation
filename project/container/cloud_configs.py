@@ -19,8 +19,9 @@ def generate_all_cloud_configs(results, base_output_dir="./Results"):
         "aws_ecs": f"{base_output_dir}/aws_ecs_{timestamp}.yaml",
         "aws_lambda": f"{base_output_dir}/aws_lambda_{timestamp}.yaml",
         "gcp_cloudrun": f"{base_output_dir}/gcp_cloudrun_{timestamp}.yaml",
-        "azure_container": f"{base_output_dir}/azure_container_{timestamp}.json",
-        "openshift": f"{base_output_dir}/openshift_{timestamp}.yaml"
+        "azure_container": f"{base_output_dir}/azure_container_{timestamp}.yaml",
+        "openshift": f"{base_output_dir}/openshift_{timestamp}.yaml",
+        "terraform": f"{base_output_dir}/terraform_{timestamp}.tf"
     }
     
     # Generate all configurations

@@ -1,5 +1,5 @@
 import os
-import json
+import yaml
 
 def generate_azure_container_config(results, output_path):
     """Generate Azure Container Instances configuration"""
@@ -34,5 +34,5 @@ def generate_azure_container_config(results, output_path):
     
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w") as f:
-        json.dump(config, f, indent=2)
-    return output_path
+        yaml.safe_dump(config, f, default_flow_style=False)
+    return {'azure': config}

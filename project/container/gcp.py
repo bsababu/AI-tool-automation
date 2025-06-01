@@ -42,4 +42,4 @@ def generate_gcp_cloudrun_config(results, output_path):
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w") as f:
         yaml.safe_dump(config, f, default_flow_style=False)
-    return output_path
+    return {'gcp': config}
