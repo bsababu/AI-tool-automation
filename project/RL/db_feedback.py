@@ -66,7 +66,6 @@ def save_to_jsonl(results):
         "cloud_configs": results.get("cloud_configs", {})
     }
     
-    # Append to JSONL file
     with open(jsonl_path, 'a', encoding='utf-8') as f:
         f.write(json.dumps(analysis_record, ensure_ascii=False) + '\n')
     

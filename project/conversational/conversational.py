@@ -1,5 +1,6 @@
 import datetime
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 from crewai import Agent, Process, Task, Crew
 from langchain.tools import BaseTool
@@ -7,8 +8,11 @@ from crewai.tools import BaseTool
 from project.RL.db_feedback import get_change_logs, get_cloud_config_feedback, get_latest_analysis, init_database, summarize_analysis, store_cloud_config_feedback
 from project.container.kubernates import generate_kubernetes_config
 from project.container.terraform import generate_terraform_config
+# from project.conversational.evaluation import evaluate_response
 from project.conversational.run_convo import analyzer_main
-from project.container.cloud_configs import generate_all_cloud_configs
+from project.container.cloud_configs import (generate_all_cloud_configs, generate_aws_ecs_config, generate_aws_lambda_config, generate_gcp_cloudrun_config, generate_azure_container_config, generate_openshift_config)
+
+
 class GetLatestAnalysisTool(BaseTool):
     name: str = "Get Latest Analysis"
     description: str = "Retrieves the latest analysis results for a given repository URL from the database."
@@ -41,8 +45,9 @@ class GenerateKubernetesConfigTool(BaseTool):
         if not result:
             return f"No analysis found for {repo_url}, cannot generate config."
         
-        results_dir = "./Results/"
-        os.makedirs(results_dir, exist_ok=True)
+        results_dir = "./Results/kubernetes/"
+        if not os.path.exists(results_dir):
+            os.makedirs(results_dir, exist_ok=True)
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         config_path = os.path.join(results_dir, f"config_kubernetes_{timestamp}.yaml")
         
@@ -62,8 +67,9 @@ class GenerateTerraformConfigTool(BaseTool):
         if not result:
             return f"No analysis found for {repo_url}, cannot generate config."
         
-        results_dir = "./Results/"
-        os.makedirs(results_dir, exist_ok=True)
+        results_dir = "./Results/terraform/"
+        if not os.path.exists(results_dir):
+            os.makedirs(results_dir, exist_ok=True)
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         config_path = os.path.join(results_dir, f"config_terraform_{timestamp}.tf")
         
@@ -83,8 +89,9 @@ class GenerateAllCloudConfigsTool(BaseTool):
         if not result:
             return f"No analysis found for {repo_url}, cannot generate configs."
         
-        results_dir = "./Results/"
-        os.makedirs(results_dir, exist_ok=True)
+        results_dir = "./Results/AllConfigs/"
+        if not os.path.exists(results_dir):
+            os.makedirs(results_dir, exist_ok=True)
         
         results = {
             "repository_url": repo_url,
@@ -107,8 +114,9 @@ class GenerateAWSECSConfigTool(BaseTool):
         if not result:
             return f"No analysis found for {repo_url}, cannot generate config."
         
-        results_dir = "./Results/"
-        os.makedirs(results_dir, exist_ok=True)
+        results_dir = "./Results/ECS"
+        if not os.path.exists(results_dir):
+            os.makedirs(results_dir, exist_ok=True)
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         config_path = os.path.join(results_dir, f"config_aws_ecs_{timestamp}.yaml")
         
@@ -116,8 +124,8 @@ class GenerateAWSECSConfigTool(BaseTool):
             "repository_url": repo_url,
             "profile": result["profile"],
         }
-        configs = generate_all_cloud_configs(results, results_dir)
-        return f"AWS ECS configuration generated at {configs['aws_ecs']}."
+        configs = generate_aws_ecs_config(results, config_path)
+        return f"AWS ECS configuration generated at {configs}."
 
 class GenerateAWSLambdaConfigTool(BaseTool):
     name: str = "Generate AWS Lambda Config"
@@ -128,16 +136,17 @@ class GenerateAWSLambdaConfigTool(BaseTool):
         if not result:
             return f"No analysis found for {repo_url}, cannot generate config."
         
-        results_dir = "./Results/"
-        os.makedirs(results_dir, exist_ok=True)
+        results_dir = "./Results/aws_lambda/"
+        if not os.path.exists(results_dir):
+            os.makedirs(results_dir, exist_ok=True)
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+        config_path = os.path.join(results_dir, f"config_aws_lambda_{timestamp}.yaml")
         results = {
             "repository_url": repo_url,
             "profile": result["profile"],
         }
-        configs = generate_all_cloud_configs(results, results_dir)
-        return f"AWS Lambda configuration generated at {configs['aws_lambda']}."
+        configs = generate_aws_lambda_config(results, config_path)
+        return f"AWS Lambda configuration generated at {configs}."
 
 class GenerateGCPCloudRunConfigTool(BaseTool):
     name: str = "Generate GCP Cloud Run Config"
@@ -148,15 +157,19 @@ class GenerateGCPCloudRunConfigTool(BaseTool):
         if not result:
             return f"No analysis found for {repo_url}, cannot generate config."
         
-        results_dir = "./Results/"
-        os.makedirs(results_dir, exist_ok=True)
+        results_dir = "./Results/gcp/"
+        if not os.path.exists(results_dir):
+            os.makedirs(results_dir, exist_ok=True)
+        
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        config_path = os.path.join(results_dir, f"config_GPC_{timestamp}.yaml")
         
         results = {
             "repository_url": repo_url,
             "profile": result["profile"],
         }
-        configs = generate_all_cloud_configs(results, results_dir)
-        return f"GCP Cloud Run configuration generated at {configs['gcp_cloudrun']}."
+        configs = generate_gcp_cloudrun_config(results, config_path)
+        return f"google cloud configuration generated at {configs}."
 
 class GenerateAzureContainerConfigTool(BaseTool):
     name: str = "Generate Azure Container Config"
@@ -167,15 +180,19 @@ class GenerateAzureContainerConfigTool(BaseTool):
         if not result:
             return f"No analysis found for {repo_url}, cannot generate config."
         
-        results_dir = "./Results/"
-        os.makedirs(results_dir, exist_ok=True)
+        results_dir = "./Results/azure/"
+        if not os.path.exists(results_dir):
+            os.makedirs(results_dir, exist_ok=True)
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        config_path = os.path.join(results_dir, f"config_azure_{timestamp}.yaml")
         
         results = {
             "repository_url": repo_url,
             "profile": result["profile"],
         }
-        configs = generate_all_cloud_configs(results, results_dir)
-        return f"Azure Container configuration generated at {configs['azure_container']}."
+        config_path = generate_azure_container_config(results, config_path)
+        return f"Azure configuration generated at {config_path}."
 
 class GenerateOpenShiftConfigTool(BaseTool):
     name: str = "Generate OpenShift Config"
@@ -186,15 +203,18 @@ class GenerateOpenShiftConfigTool(BaseTool):
         if not result:
             return f"No analysis found for {repo_url}, cannot generate config."
         
-        results_dir = "./Results/"
-        os.makedirs(results_dir, exist_ok=True)
+        results_dir = "./Results/openshift/"
+        if not os.path.exists(results_dir):
+            os.makedirs(results_dir, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        config_path = os.path.join(results_dir, f"config_openshift_{timestamp}.yaml")
         
         results = {
             "repository_url": repo_url,
             "profile": result["profile"],
         }
-        configs = generate_all_cloud_configs(results, results_dir)
-        return f"OpenShift configuration generated at {configs['openshift']}."
+        configs = generate_openshift_config(results, config_path)
+        return f"Azure configuration generated at {configs}."
 
 class CloudConfigFeedbackTool(BaseTool):
     name: str = "Cloud Config Feedback"
@@ -242,9 +262,6 @@ class SummarizeAnalysisTool(BaseTool):
     def _run(self, repo_url: str) -> str:
         return summarize_analysis(repo_url)
 
-# CrewAI Agent Setup
-
-
 def create_analysis_agent(model: str):
     """Create an analysis agent with detailed, verbose responses."""
     return Agent(
@@ -269,6 +286,7 @@ def create_analysis_agent(model: str):
             GenerateAzureContainerConfigTool(),
             GenerateOpenShiftConfigTool(),
             CloudConfigFeedbackTool(),
+            GenerateTerraformConfigTool(),
             SummarizeAnalysisTool(),
         ],
     )
@@ -282,7 +300,6 @@ def run_conversational_agent():
     llm_api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("OPEN_MODEL")
     
-    # Validate environment variables
     if not all([github_token, llm_api_key, model]):
         missing = []
         if not github_token: missing.append("GITHUB_TOKEN")
@@ -291,7 +308,7 @@ def run_conversational_agent():
         print(f"Error: Missing required environment variables: {', '.join(missing)}")
         return
 
-    # Initialize conversation state
+    
     conversation_state = {
         "repo_url": None,
         "last_analysis": None,
@@ -316,9 +333,8 @@ def run_conversational_agent():
             conversation_state["repo_url"] = repo_url
             conversation_state["last_analysis"] = result
             
-            # Display analysis results
             estimated = result["estimated"]
-            print(f"\nResource Analysis:")
+            print(f"\nResources Analysis:")
             print(f"Memory: {estimated['estimated_Memory']}")
             print(f"CPU Cores: {estimated['estimated_CPU_cores']}")
             print(f"Network: {estimated['estimated_network_bandwidth']}")
@@ -356,7 +372,7 @@ def run_conversational_agent():
             return False
     
     def process_query(user_input: str):
-        """Process a user query with focused responses."""
+        """Process a user query with focused responses and evaluate the quality."""
         if not conversation_state["repo_url"]:
             print("Please analyze a repository first using the 'analyze' command.")
             return
@@ -378,12 +394,29 @@ def run_conversational_agent():
                 agents=[conversation_state["agent"]], 
                 tasks=[task], 
                 process=Process.sequential,
-                verbose=False
+                verbose=True
             )
             conversation_state["crew"] = crew
             
             result = crew.kickoff()
-            print("\n" + str(result.raw))
+            response = str(result.raw)
+            print("\n" + response)
+            
+            # Evaluation with Deep
+            # if conversation_state["last_analysis"]:
+            #     evaluation_results = evaluate_response(
+            #         user_input, 
+            #         response, 
+            #         conversation_state["last_analysis"]
+            #     )
+            #     print("\n--- Response Quality Evaluation ---")
+            #     print(f"Overall Score: {evaluation_results.get('overall_score', 'N/A'):.2f}/1.0")
+                
+                
+            #     if os.getenv("SHOW_DETAILED_EVALUATION", "false").lower() == "true":
+            #         for metric_name, metric_result in evaluation_results.items():
+            #             if metric_name != "overall_score":
+            #                 print(f"{metric_name}: {metric_result['score']:.2f} - {'✓' if metric_result['passed'] else '✗'}")
             
         except Exception as e:
             print(f"Error processing query: {str(e)}")

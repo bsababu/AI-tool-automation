@@ -24,14 +24,14 @@ def generate_all_cloud_configs(results, base_output_dir="./Results"):
         "terraform": f"{base_output_dir}/terraform_{timestamp}.tf"
     }
     
-    # Generate all configurations
     generated_configs = {
         "kubernetes": generate_kubernetes_config(results, configs["kubernetes"]),
         "aws_ecs": generate_aws_ecs_config(results, configs["aws_ecs"]),
         "aws_lambda": generate_aws_lambda_config(results, configs["aws_lambda"]),
         "gcp_cloudrun": generate_gcp_cloudrun_config(results, configs["gcp_cloudrun"]),
         "azure_container": generate_azure_container_config(results, configs["azure_container"]),
-        "openshift": generate_openshift_config(results, configs["openshift"])
+        "openshift": generate_openshift_config(results, configs["openshift"]),
+        "terraform": generate_kubernetes_config(results, configs["terraform"])
     }
     
     return generated_configs

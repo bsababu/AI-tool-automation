@@ -9,7 +9,6 @@ def generate_terraform_config(results, output_path):
     cpu_cores = int(profile["recommendations"]["cpu"]["recommended_cores"])
     bandwidth = profile["recommendations"]["bandwidth"]["peak_requirement"]
     
-    # Map memory and CPU to AWS instance types (simplified)
     instance_type = "t2.micro"  # Default
     if memory_mb >= 2000 or cpu_cores >= 4:
         instance_type = "t2.large"

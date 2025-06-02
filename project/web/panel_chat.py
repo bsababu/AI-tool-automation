@@ -7,7 +7,12 @@ from crewai import Agent, Process, Task, Crew
 
 
 from project.RL.db_feedback import summarize_analysis
-from project.conversational import GenerateKubernetesConfigTool, GenerateTerraformConfigTool, GetChangeLogsTool, GetLatestAnalysisTool, SummarizeAnalysisTool
+from project.conversational.conversational import (
+    GetLatestAnalysisTool,
+    GetChangeLogsTool,
+    GenerateKubernetesConfigTool,
+    GenerateTerraformConfigTool,
+    SummarizeAnalysisTool,)
 from project.conversational.run_convo import analyzer_main
 
 load_dotenv()
@@ -93,7 +98,6 @@ class ChatInterface:
         self.status_text.object = "Processing your query..."
         
         try:
-            # Create a dynamic task based on user input
             task = Task(
                 description=(
                     f"Answer the user's query: '{contents}' for repository: '{self.repo_url}'. "
@@ -104,7 +108,6 @@ class ChatInterface:
                 expected_output="A specific natural language response answering the user's query",
             )
             
-            # Execute the task
             crew = Crew(
                 agents=[self.agent], 
                 tasks=[task], 

@@ -10,38 +10,41 @@ def generate_kubernetes_config(results, output_path):
     cpu_cores = str(profile["recommendations"]["cpu"]["recommended_cores"])
     bandwidth = profile["recommendations"]["bandwidth"]["peak_requirement"]
     
-    config = {
-        "apiVersion": "apps/v1",
-        "kind": "Deployment",
-        "metadata": {
-            "name": f"{repo_name}-deployment",
-            "labels": {"app": repo_name},
-        },
-        "spec": {
-            "replicas": 1,
-            "selector": {"matchLabels": {"app": repo_name}},
-            "template": {
-                "metadata": {"labels": {"app": repo_name}},
-                "spec": {
-                    "containers": [
-                        {
-                            "name": repo_name,
-                            "image": "python:3.9-slim",
-                            "resources": {
-                                "limits": {"memory": memory, "cpu": cpu_cores},
-                                "requests": {"memory": memory, "cpu": cpu_cores},
-                            },
-                            "env": [
-                                {"name": "NETWORK_BANDWIDTH", "value": f"Network bandwidth: {bandwidth}"}
-                            ],
-                        }
-                    ]
-                },
-            },
-        },
-    }
+    config = f"""
+                {{
+                    "apiVersion": "apps/v1",
+                    "kind": "Deployment",
+                    "metadata": {{
+                        "name": "{repo_name}-deployment",
+                        "labels": {{"app": "{repo_name}"}},
+                    }},
+                    "spec": {{
+                        "replicas": 1,
+                        "selector": {{"matchLabels": {{"app": "{repo_name}"}}}},
+                        "template": {{
+                            "metadata": {{"labels": {{"app": "{repo_name}"}}}},
+                            "spec": {{
+                                "containers": [
+                                    {{
+                                        "name": "{repo_name}",
+                                        "image": "python:3.9-slim",
+                                        "resources": {{
+                                            "limits": {{"memory": "{memory}", "cpu": "{cpu_cores}"}},
+                                            "requests": {{"memory": "{memory}", "cpu": "{cpu_cores}"}},
+                                        }},
+                                        "env": [
+                                            {{"name": "NETWORK_BANDWIDTH", "value": "Network bandwidth: {bandwidth}"}}
+                                        ],
+                                    }}
+                                ]
+                            }},
+                        }},
+                    }},
+                }}
+                """
+
     
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as f:
-        yaml.safe_dump(config, f, default_flow_style=False)
-    return {'kubernetes': config}
+        f.write(config)
+    return output_path

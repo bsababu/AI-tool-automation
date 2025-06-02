@@ -3,7 +3,6 @@ import os
 import datetime
 import time
 import git
-from dotenv import load_dotenv
 
 
 from project.RL.db_feedback import compare_and_log_changes, init_database, store_analysis
@@ -40,29 +39,26 @@ def analyzer_main(repo_url, github_token, llm_api_key):
     try:
         start = time.time()
         conn = init_database()
-       
-        # Analyze repository
+        if not conn:
+            return {"error": "Failed to connect to the database."}
         analyzer = GithubResourceAnalyzer(github_token, llm_api_key)
         results = analyzer.analyze_repository(repo_url)
         
-        # Store analysis results
         store_analysis(conn, results)
         
-        # Create results directory
-        results_dir = "./Results"
-        os.makedirs(results_dir, exist_ok=True)
+        results_dir = "./Results/Configs"
+        if not os.path.exists(results_dir):
+            os.makedirs(results_dir, exist_ok=True)
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         
-        # Generate all cloud configurations
         cloud_configs = generate_all_cloud_configs(results, results_dir)
-        results["cloud_configs"] = cloud_configs  # Add cloud configs to results
-        
-        # Save full results to JSON
+        results["cloud_configs"] = cloud_configs
+
+
         json_path = os.path.join(results_dir, f"analysis_{timestamp}.json")
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2)
         
-        # Compare with previous analysis
         comparison = compare_and_log_changes(conn, results)
         
         try:
