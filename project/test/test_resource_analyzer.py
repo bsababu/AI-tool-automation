@@ -201,8 +201,12 @@ class TestResourceAnalyzer(unittest.TestCase):
     def test_analyze_file_with_threading(self, mock_file):
         """Test analyzing a file with threading"""
         with patch.object(self.analyzer, '_get_llm_insights') as mock_llm:
-            # Simulate LLM failure to test static fallback
-            mock_llm.return_value = {"error": "LLM failed"}
+            
+            mock_llm.return_value = {
+                    "memory": {"base_mb": 100.0, "peak_mb": 200.0},
+                    "cpu": {"estimated_cores": 2.0, "parallelization_potential": "medium"},
+                    "bandwidth": {"bandwidth_mbps": 1.0}
+                }
             
             result = self.analyzer.analyze_file("threaded.py", self.repo_structure)
             

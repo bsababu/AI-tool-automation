@@ -26,7 +26,7 @@ def generate_aws_ecs_config(results, output_path):
                             "Family": "{repo_name}-task",
                             "RequiresCompatibilities": ["FARGATE"],
                             "NetworkMode": "awsvpc",
-                            "Cpu": "{cpu_cores * 1024}",
+                            "Cpu": {cpu_cores * 1024},
                             "Memory": "{memory}",
                             "ContainerDefinitions": [{{
                                 "Name": "{repo_name}",

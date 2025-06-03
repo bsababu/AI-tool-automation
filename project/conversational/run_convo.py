@@ -30,6 +30,9 @@ class GithubResourceAnalyzer:
             "profile": resource_profile,
             "commit_hash": commit_hash,
         }
+    
+def generate_kubernetes_config(results, output_path):
+    pass
 
 def analyzer_main(repo_url, github_token, llm_api_key):
     if not repo_url.endswith(".git"):

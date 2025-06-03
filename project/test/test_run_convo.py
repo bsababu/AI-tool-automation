@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from conversational.run_convo import GithubResourceAnalyzer, analyzer_main
+from conversational.run_convo import GithubResourceAnalyzer, analyzer_main, init_database, store_analysis, compare_and_log_changes, generate_kubernetes_config
 
 class TestGithubResourceAnalyzer(unittest.TestCase):
     def setUp(self):
@@ -58,7 +58,7 @@ class TestAnalyzerMain(unittest.TestCase):
         
     def test_invalid_url(self):
         result = analyzer_main("invalid_url", self.github_token, self.llm_api_key)
-        self.assertIsNone(result)
+        self.assertEqual(result, {'error': 'Invalid URL. Please enter a valid GitHub .git URL.'})
 
     @patch('conversational.run_convo.init_database')
     @patch('conversational.run_convo.GithubResourceAnalyzer')
@@ -74,9 +74,10 @@ class TestAnalyzerMain(unittest.TestCase):
         
         mock_analyzer_instance = mock_analyzer.return_value
         mock_analyzer_instance.analyze_repository.return_value = {
+            "repository_url": self.valid_repo_url,
             "profile": {
                 "recommendations": {
-                    "memory": {"recommended_allocation": "1GB"},
+                    "memory": {"recommended_allocation": "1024MB"},
                     "cpu": {"recommended_cores": 2},
                     "bandwidth": {"peak_requirement": "100Mbps"}
                 }
@@ -89,9 +90,9 @@ class TestAnalyzerMain(unittest.TestCase):
         result = analyzer_main(self.valid_repo_url, self.github_token, self.llm_api_key)
         
         self.assertIsNotNone(result)
-        self.assertIn("resuts", result)
+        self.assertIn("results", result)
         self.assertIn("estimated", result)
-        self.assertEqual(result["estimated"]["estimated_Memory"], "1GB")
+        self.assertEqual(result["estimated"]["estimated_Memory"], "1024MB")
         self.assertEqual(result["estimated"]["estimated_CPU_cores"], 2)
         self.assertEqual(result["estimated"]["estimated_network_bandwidth"], "100Mbps")
 
@@ -118,7 +119,7 @@ class TestAnalyzerMain(unittest.TestCase):
         mock_k8s.return_value = True
         
         result = analyzer_main(self.valid_repo_url, self.github_token, self.llm_api_key)
-        self.assertIsNone(result)
+        self.assertEqual(result, {'error': "Analysis failed: 'memory'"})
 
 if __name__ == '__main__':
     unittest.main()

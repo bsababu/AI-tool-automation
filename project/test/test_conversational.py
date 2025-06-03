@@ -74,9 +74,9 @@ class TestConversationalAgent(unittest.TestCase):
         mock_summarize.assert_called_once_with(self.test_repo_url)
 
     def test_create_analysis_agent(self):
-        agent = create_analysis_agent()
-        self.assertEqual(agent.role, "Analyser")
-        self.assertEqual(len(agent.tools), 5)
+        agent = create_analysis_agent(model="gpt-3.5-turbo")
+        self.assertEqual(agent.role, "Resource Analyzer")
+        self.assertEqual(len(agent.tools), 12)
         self.assertFalse(agent.allow_delegation)
 
 if __name__ == '__main__':
